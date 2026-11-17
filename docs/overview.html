@@ -1,0 +1,203 @@
+<title>devconsole</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one wide diagram that reads top to bottom, then three short explainer columns. */
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --ink:#1b1f27; --muted:#5d6675; --line:#cfd5de;
+  --you:#2f6fdf; --you-bg:#e8f0fd;
+  --tool:#7a4fd6; --tool-bg:#f0eafc;
+  --file:#0f8a6a; --file-bg:#e3f5ef;
+  --src:#b86b12; --src-bg:#fbf0e1;
+  --off:#9aa3b0; --off-bg:#eef0f3;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12151b; --panel:#1a1e26; --ink:#e7eaf0; --muted:#9aa4b3; --line:#343b47;
+  --you:#7aa5f5; --you-bg:#1c2a44; --tool:#b49af0; --tool-bg:#2a2141;
+  --file:#4fcfa8; --file-bg:#14322a; --src:#e3a55a; --src-bg:#3a2a16; --off:#7b8594; --off-bg:#232832;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12151b; --panel:#1a1e26; --ink:#e7eaf0; --muted:#9aa4b3; --line:#343b47;
+  --you:#7aa5f5; --you-bg:#1c2a44; --tool:#b49af0; --tool-bg:#2a2141;
+  --file:#4fcfa8; --file-bg:#14322a; --src:#e3a55a; --src-bg:#3a2a16; --off:#7b8594; --off-bg:#232832;
+  color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 48px}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+h1{font-size:26px;font-weight:600;margin:0;text-wrap:balance;letter-spacing:-.01em}
+.lede{color:var(--muted);margin:0;max-width:68ch;font-size:16px}
+.hero{display:flex;flex-direction:column;gap:10px}
+.eyebrow{margin:0;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--tool);font-weight:600}
+h2.sec{font-size:20px;font-weight:600;margin:6px 0 0;text-wrap:balance}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+.card h3{margin:0 0 6px;font-size:15px}.card p{margin:0}
+pre{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;font:13px/1.6 var(--mono)}
+.foot{color:var(--muted);font-size:13px;margin:0}
+.diagram{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+svg{display:block;min-width:820px;width:100%;height:auto}
+svg text{font-family:var(--sans);fill:var(--ink)}
+svg .mono{font-family:var(--mono);font-size:12px}
+svg .small{font-size:12px;fill:var(--muted)}
+svg .lbl{font-size:11px;letter-spacing:.08em;font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.col{min-width:0}
+.col h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 6px;font-weight:600}
+.col p{margin:0 0 8px}
+code{font-family:var(--mono);font-size:13px;background:var(--off-bg);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+</style>
+
+<div class="wrap">
+  <header class="hero"><p class="eyebrow">Open-source plugin for Claude Code</p><h1>devconsole: least-privilege plugins and connectors for every project</h1>
+  <p class="lede">Every plugin and connector you turn on adds to the context of every Claude Code session, in every folder. devconsole gives each project only what its work needs, using the model you already know from AWS IAM: projects are users, profiles are groups, and nothing is on unless a profile grants it.</p></header>
+  <h2 class="sec">How a session gets its plugins and connectors</h2>
+
+  <div class="diagram" role="img" aria-label="Flow: you edit profiles and project assignments; the console writes per-project plugin switches and connector lists; plugins are installed once into a shared cache from marketplaces or a claude.ai account; a session started in a folder reads its switches and loads plugins from the cache and the allowed connectors.">
+  <svg viewBox="0 0 1000 640" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted)"/>
+      </marker>
+    </defs>
+
+    <!-- Row 1: you decide -->
+    <text x="20" y="28" class="lbl" style="fill:var(--you)">1 · YOU DECIDE</text>
+    <rect x="20" y="40" width="300" height="96" rx="8" style="fill:var(--you-bg);stroke:var(--you)"/>
+    <text x="36" y="66" font-weight="600">Profiles (groups)</text>
+    <text x="36" y="86" class="mono">profiles.json</text>
+    <text x="36" y="108" class="small">lang-python → pyright plugin</text>
+    <text x="36" y="124" class="small">team-chat → Slack connector</text>
+
+    <rect x="350" y="40" width="300" height="96" rx="8" style="fill:var(--you-bg);stroke:var(--you)"/>
+    <text x="366" y="66" font-weight="600">Assignments (users)</text>
+    <text x="366" y="86" class="mono">projects.json</text>
+    <text x="366" y="108" class="small">api-service → code-core, lang-python</text>
+    <text x="366" y="124" class="small">every project → baseline (default)</text>
+
+    <rect x="680" y="40" width="300" height="96" rx="8" style="fill:var(--you-bg);stroke:var(--you)"/>
+    <text x="696" y="66" font-weight="600">Rules</text>
+    <text x="696" y="88" class="small">Allowed = union of attached profiles</text>
+    <text x="696" y="106" class="small">Connectors off unless a profile grants</text>
+    <text x="696" y="124" class="small">An explicit deny always wins</text>
+
+    <!-- arrows to console -->
+    <path d="M170 136 V172 H470" style="fill:none;stroke:var(--muted);stroke-width:1.5" marker-end="url(#ar)"/>
+    <path d="M500 136 V164" style="fill:none;stroke:var(--muted);stroke-width:1.5" marker-end="url(#ar)"/>
+    <path d="M830 136 V172 H530" style="fill:none;stroke:var(--muted);stroke-width:1.5" marker-end="url(#ar)"/>
+
+    <!-- Row 2: console -->
+    <text x="20" y="206" class="lbl" style="fill:var(--tool)">2 · THE CONSOLE APPLIES</text>
+    <rect x="340" y="168" width="320" height="64" rx="8" style="fill:var(--tool-bg);stroke:var(--tool)"/>
+    <text x="500" y="196" text-anchor="middle" font-weight="600">devconsole</text>
+    <text x="500" y="216" text-anchor="middle" class="small">page with switches · CLI · session hook</text>
+
+    <path d="M420 232 V270 H200 V292" style="fill:none;stroke:var(--muted);stroke-width:1.5" marker-end="url(#ar)"/>
+    <path d="M580 232 V270 H800 V292" style="fill:none;stroke:var(--muted);stroke-width:1.5" marker-end="url(#ar)"/>
+    <text x="210" y="264" class="small">writes plugin switches</text>
+    <text x="610" y="264" class="small">writes connector list (backed up first)</text>
+
+    <!-- Row 3: per-project files -->
+    <text x="20" y="288" class="lbl" style="fill:var(--file)">3 · PER-PROJECT FILES</text>
+    <rect x="20" y="296" width="380" height="104" rx="8" style="fill:var(--file-bg);stroke:var(--file)"/>
+    <text x="36" y="320" font-weight="600">Plugin switches (one per project)</text>
+    <text x="36" y="340" class="mono">api-service/.claude/settings.local.json</text>
+    <text x="36" y="362" class="mono" style="fill:var(--muted)">"enabledPlugins": {</text>
+    <text x="52" y="378" class="mono" style="fill:var(--muted)">"engineering@…": true, "pyright-lsp@…": true }</text>
+
+    <rect x="600" y="296" width="380" height="104" rx="8" style="fill:var(--file-bg);stroke:var(--file)"/>
+    <text x="616" y="320" font-weight="600">Connectors off (anything not granted)</text>
+    <text x="616" y="340" class="mono">~/.claude.json → projects → api-service</text>
+    <text x="616" y="362" class="mono" style="fill:var(--muted)">"disabledMcpServers": [</text>
+    <text x="632" y="378" class="mono" style="fill:var(--muted)">"claude.ai Slack", "claude.ai Gmail", … ]</text>
+
+    <!-- Row 4: sources and cache -->
+    <text x="20" y="440" class="lbl" style="fill:var(--src)">4 · WHERE PLUGIN FILES COME FROM (INSTALLED ONCE)</text>
+    <rect x="20" y="452" width="180" height="62" rx="8" style="fill:var(--src-bg);stroke:var(--src)"/>
+    <text x="34" y="476" font-weight="600" font-size="13">Official marketplace</text>
+    <text x="34" y="496" class="small">dev tools, any login</text>
+    <rect x="212" y="452" width="180" height="62" rx="8" style="fill:var(--src-bg);stroke:var(--src)"/>
+    <text x="226" y="476" font-weight="600" font-size="13">Anthropic directory</text>
+    <text x="226" y="496" class="small">knowledge-work plugins</text>
+    <rect x="404" y="452" width="180" height="62" rx="8" style="fill:var(--src-bg);stroke:var(--src)"/>
+    <text x="418" y="476" font-weight="600" font-size="13">Your local marketplace</text>
+    <text x="418" y="496" class="small">your own plugins</text>
+    <rect x="596" y="452" width="180" height="62" rx="8" style="fill:var(--src-bg);stroke:var(--src);stroke-dasharray:5 4"/>
+    <text x="610" y="476" font-weight="600" font-size="13">claude.ai account sync</text>
+    <text x="610" y="496" class="small">logged-in account only</text>
+
+    <rect x="796" y="452" width="184" height="62" rx="8" style="fill:var(--off-bg);stroke:var(--off);stroke-dasharray:3 4"/>
+    <text x="810" y="476" font-weight="600" font-size="13" style="fill:var(--muted)">Desktop app plugins</text>
+    <text x="810" y="496" class="small">separate; not read by Code</text>
+
+    <path d="M110 514 V536 H686 V514" style="fill:none;stroke:var(--src);stroke-width:1.2"/>
+    <path d="M302 514 V536 M494 514 V536" style="fill:none;stroke:var(--src);stroke-width:1.2"/>
+    <path d="M380 536 V556" style="fill:none;stroke:var(--src);stroke-width:1.5" marker-end="url(#ar)"/>
+    <rect x="190" y="560" width="380" height="58" rx="8" style="fill:var(--panel);stroke:var(--src)"/>
+    <text x="380" y="584" text-anchor="middle" font-weight="600">Shared plugin cache (one copy each)</text>
+    <text x="380" y="604" text-anchor="middle" class="mono">~/.claude/plugins/cache/&lt;source&gt;/&lt;plugin&gt;/</text>
+
+    <!-- Row 5: session -->
+    <rect x="660" y="560" width="320" height="58" rx="8" style="fill:var(--tool-bg);stroke:var(--tool);stroke-width:1.5"/>
+    <text x="820" y="584" text-anchor="middle" font-weight="600">5 · A session starts in api-service</text>
+    <text x="820" y="604" text-anchor="middle" class="small">reads its switches, then loads only those</text>
+
+    <path d="M400 348 H590 V578 H656" style="fill:none;stroke:var(--file);stroke-width:1.5" marker-end="url(#ar)"/>
+    <path d="M790 400 V548" style="fill:none;stroke:var(--file);stroke-width:1.5" marker-end="url(#ar)"/>
+    <path d="M660 606 H574" style="fill:none;stroke:var(--tool);stroke-width:1.5" marker-end="url(#ar)"/>
+    <text x="578" y="634" class="small">loads skills from the cache</text>
+  </svg>
+  </div>
+
+  <div class="legend" aria-hidden="true">
+    <span><i class="sw" style="background:var(--you)"></i>What you edit</span>
+    <span><i class="sw" style="background:var(--tool)"></i>Tools that act</span>
+    <span><i class="sw" style="background:var(--file)"></i>Files written per project</span>
+    <span><i class="sw" style="background:var(--src)"></i>Plugin sources</span>
+    <span><i class="sw" style="background:var(--off)"></i>Not used by Claude Code</span>
+  </div>
+
+  <div class="cols">
+    <div class="col">
+      <h2>Install once, switch per project</h2>
+      <p>A plugin's files live in one shared cache. Turning it on for a project adds one line to that project's <code>settings.local.json</code>. Nothing is copied into the project folder.</p>
+    </div>
+    <div class="col">
+      <h2>Login matters only for synced plugins</h2>
+      <p>Marketplace plugins install on any account. Plugins synced from claude.ai load only while you're logged into the account that has them, so prefer the marketplace version when both exist.</p>
+    </div>
+    <div class="col">
+      <h2>Changes land at the next session</h2>
+      <p>Plugins and connectors load when a session starts, based on the folder it starts in. For work that crosses projects, start in a workspace folder that has its own profiles and access to the other folders.</p>
+    </div>
+  </div>
+
+  <h2 class="sec">The rules</h2>
+  <div class="cards">
+    <div class="card"><h3>Allow is a union</h3><p>A project gets the plugins and connectors of every profile attached to it, plus the default profiles every project gets.</p></div>
+    <div class="card"><h3>Connectors are denied by default</h3><p>A connector is on only where a profile grants it. A connector your account adds later starts off everywhere.</p></div>
+    <div class="card"><h3>An explicit deny wins</h3><p>A profile can deny a plugin or connector, and that beats any grant. One-off per-project exceptions exist, but the page flags them so they don't pile up.</p></div>
+  </div>
+
+  <h2 class="sec">What you get</h2>
+  <div class="cards">
+    <div class="card"><h3>One page for every project</h3><p>A local page lists each project, its profiles and its status (ok, drift, missing, new), with switches. Every change previews the projects it affects before it applies.</p></div>
+    <div class="card"><h3>New folders don't slip through</h3><p>A session-start hook notices a folder with no profile and offers <code>/project-setup</code>, an interview that looks at the stack and proposes a set of profiles.</p></div>
+    <div class="card"><h3>A lifecycle for capabilities</h3><p>New plugins and connectors land in an inbox. Add one to a few profiles, or to the default profile to turn it on everywhere. Retire an old one from every profile at once.</p></div>
+    <div class="card"><h3>Workspaces for cross-project work</h3><p>A small folder that grants a session access to several projects, with its own profiles. In IAM terms, a role you take on for one kind of work.</p></div>
+    <div class="card"><h3>Careful with your settings</h3><p>Changes go through Claude Code's own plugin commands. Settings are backed up before each write, every change is logged, and nothing is deleted. The page listens on localhost only and needs a per-run token.</p></div>
+    <div class="card"><h3>Small and dependency-free</h3><p>Python standard library and one HTML file. The plugin itself adds a couple of hundred tokens to a session; the profiles it manages decide the rest.</p></div>
+  </div>
+
+  <h2 class="sec">Try it</h2>
+<pre>/plugin marketplace add &lt;owner&gt;/devconsole
+/plugin install devconsole@devconsole
+/project-setup init      # pick your projects folder, then set up each project
+devconsole               # open the page (or /devconsole in a session)</pre>
+  <p class="foot">Profiles live in two small JSON files you own. The plugin ships with starter profiles and sends nothing anywhere.</p>
+
+</div>
