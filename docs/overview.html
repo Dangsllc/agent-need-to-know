@@ -1,203 +1,258 @@
 <title>devconsole</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: one wide diagram that reads top to bottom, then three short explainer columns. */
+/* Layout: one 1100px column. Hero, then a four-step vertical flow, then sources, walkthrough, examples, rules, install.
+   Palette follows the navy + brass system: light ground by default, dark variant on request or by system. */
 :root{
-  --bg:#f6f7f9; --panel:#ffffff; --ink:#1b1f27; --muted:#5d6675; --line:#cfd5de;
-  --you:#2f6fdf; --you-bg:#e8f0fd;
-  --tool:#7a4fd6; --tool-bg:#f0eafc;
-  --file:#0f8a6a; --file-bg:#e3f5ef;
-  --src:#b86b12; --src-bg:#fbf0e1;
-  --off:#9aa3b0; --off-bg:#eef0f3;
-  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
-  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --bg:#f7f8fa; --surface:#ffffff; --surface-2:#eef1f5;
+  --border:rgba(20,86,138,.20); --border-accent:rgba(143,98,16,.30);
+  --brand:#14568a; --brand-soft:#e7eff7; --accent:#8f6210; --accent-dim:#fdf0d5;
+  --ok:#1f7a55; --ok-soft:#e3f3ea; --off:#66788c; --off-soft:#eef1f5;
+  --text:#101a24; --muted:#46586b; --dim:#66788c;
+  --term-bg:#0b1724; --term-text:#dbe6f0; --term-dim:#8fa3b8; --term-accent:#e0b264; --term-ok:#7fd4a8;
+  --sans:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono","SFMono-Regular",Menlo,"Courier New",monospace;
+  --radius:6px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#12151b; --panel:#1a1e26; --ink:#e7eaf0; --muted:#9aa4b3; --line:#343b47;
-  --you:#7aa5f5; --you-bg:#1c2a44; --tool:#b49af0; --tool-bg:#2a2141;
-  --file:#4fcfa8; --file-bg:#14322a; --src:#e3a55a; --src-bg:#3a2a16; --off:#7b8594; --off-bg:#232832;
+  --bg:#0a1420; --surface:#111e2e; --surface-2:#18293c;
+  --border:rgba(58,146,201,.18); --border-accent:rgba(200,145,47,.30);
+  --brand:#6fb3dd; --brand-soft:#132b42; --accent:#c8912f; --accent-dim:#3f2c0d;
+  --ok:#5fd0a0; --ok-soft:#12302a; --off:#7488a0; --off-soft:#18293c;
+  --text:#e6edf3; --muted:#9bacbd; --dim:#7488a0;
+  --term-bg:#060e17; --term-text:#dbe6f0; --term-dim:#8fa3b8; --term-accent:#e0b264; --term-ok:#7fd4a8;
   color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#12151b; --panel:#1a1e26; --ink:#e7eaf0; --muted:#9aa4b3; --line:#343b47;
-  --you:#7aa5f5; --you-bg:#1c2a44; --tool:#b49af0; --tool-bg:#2a2141;
-  --file:#4fcfa8; --file-bg:#14322a; --src:#e3a55a; --src-bg:#3a2a16; --off:#7b8594; --off-bg:#232832;
+  --bg:#0a1420; --surface:#111e2e; --surface-2:#18293c;
+  --border:rgba(58,146,201,.18); --border-accent:rgba(200,145,47,.30);
+  --brand:#6fb3dd; --brand-soft:#132b42; --accent:#c8912f; --accent-dim:#3f2c0d;
+  --ok:#5fd0a0; --ok-soft:#12302a; --off:#7488a0; --off-soft:#18293c;
+  --text:#e6edf3; --muted:#9bacbd; --dim:#7488a0;
+  --term-bg:#060e17; --term-text:#dbe6f0; --term-dim:#8fa3b8; --term-accent:#e0b264; --term-ok:#7fd4a8;
   color-scheme:dark}
-body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 48px}
-.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
-h1{font-size:26px;font-weight:600;margin:0;text-wrap:balance;letter-spacing:-.01em}
-.lede{color:var(--muted);margin:0;max-width:68ch;font-size:16px}
-.hero{display:flex;flex-direction:column;gap:10px}
-.eyebrow{margin:0;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--tool);font-weight:600}
-h2.sec{font-size:20px;font-weight:600;margin:6px 0 0;text-wrap:balance}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
-.card h3{margin:0 0 6px;font-size:15px}.card p{margin:0}
-pre{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;font:13px/1.6 var(--mono)}
-.foot{color:var(--muted);font-size:13px;margin:0}
-.diagram{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
-svg{display:block;min-width:820px;width:100%;height:auto}
-svg text{font-family:var(--sans);fill:var(--ink)}
-svg .mono{font-family:var(--mono);font-size:12px}
-svg .small{font-size:12px;fill:var(--muted)}
-svg .lbl{font-size:11px;letter-spacing:.08em;font-weight:600}
-.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--muted)}
-.legend span{display:inline-flex;align-items:center;gap:6px}
-.sw{width:12px;height:12px;border-radius:3px;display:inline-block}
-.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
-.col{min-width:0}
-.col h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 6px;font-weight:600}
-.col p{margin:0 0 8px}
-code{font-family:var(--mono);font-size:13px;background:var(--off-bg);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+
+body{background:var(--bg);color:var(--text);font:16px/1.6 var(--sans);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 72px}
+.wrap{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:72px}
+section{display:flex;flex-direction:column;gap:18px}
+.label{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin:0}
+h1{font-size:clamp(32px,5vw,52px);font-weight:600;line-height:1.12;letter-spacing:-.025em;margin:0;text-wrap:balance;max-width:20ch}
+h1 em{font-style:normal;color:var(--accent)}
+h2{font-size:clamp(24px,3vw,32px);font-weight:600;line-height:1.2;letter-spacing:-.02em;margin:0;text-wrap:balance}
+h3{font-family:var(--mono);font-size:15px;font-weight:500;margin:0;letter-spacing:-.01em}
+p{margin:0}
+.sub{font-size:clamp(16px,2vw,19px);color:var(--muted);max-width:62ch}
+.desc{color:var(--muted);max-width:64ch}
+code,.mono{font-family:var(--mono);font-size:.88em}
+code{background:var(--surface-2);border:1px solid var(--border);padding:1px 6px;border-radius:4px;overflow-wrap:anywhere}
+.hero{gap:20px}
+.stat{display:flex;flex-wrap:wrap;gap:10px 24px;color:var(--muted);font-size:14px}
+.stat b{color:var(--text);font-weight:600}
+
+.flow{display:flex;flex-direction:column}
+.step{display:grid;grid-template-columns:52px minmax(0,1fr);gap:0 20px}
+.rail{display:flex;flex-direction:column;align-items:center}
+.num{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-weight:500;font-size:16px;
+  background:var(--accent-dim);color:var(--accent);border:1px solid var(--border-accent);flex:none}
+.line{flex:1;width:2px;background:var(--border-accent);margin:6px 0}
+.step:last-child .line{display:none}
+.body{padding:8px 0 36px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.step:last-child .body{padding-bottom:0}
+.big{font-family:var(--sans);font-size:20px;font-weight:600;letter-spacing:-.01em}
+.why{color:var(--muted);max-width:60ch}
+.tiles{display:flex;flex-wrap:wrap;gap:10px}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;min-width:0;display:flex;flex-direction:column;gap:4px}
+.tile .k{font-family:var(--mono);font-size:13px;color:var(--brand);font-weight:500}
+.tile .v{font-size:14px;color:var(--muted)}
+.arrow{color:var(--accent);font-family:var(--mono)}
+.chip{display:inline-block;font-family:var(--mono);font-size:12px;padding:2px 9px;border-radius:999px;margin:2px 4px 2px 0;white-space:nowrap}
+.chip.on{background:var(--ok-soft);color:var(--ok)}
+.chip.off{background:var(--off-soft);color:var(--off);text-decoration:line-through}
+.chip.pf{background:var(--brand-soft);color:var(--brand)}
+.file{font-family:var(--mono);font-size:12px;color:var(--dim);overflow-wrap:anywhere}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.card p{color:var(--muted);font-size:15px}
+.tag{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.note{border-left:3px solid var(--accent);background:var(--surface);padding:14px 18px;border-radius:0 var(--radius) var(--radius) 0;color:var(--muted);max-width:76ch}
+.note b{color:var(--text)}
+
+.walk{display:flex;flex-direction:column;gap:28px}
+.wstep{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:22px;align-items:start}
+@media (max-width:820px){.wstep{grid-template-columns:minmax(0,1fr)}}
+.wstep .t{display:flex;flex-direction:column;gap:8px}
+.wstep .t p{color:var(--muted)}
+.term{margin:0;background:var(--term-bg);color:var(--term-text);border-radius:var(--radius);padding:16px 18px;font:13px/1.7 var(--mono);overflow-x:auto;white-space:pre;border:1px solid var(--border)}
+.term .c{color:var(--term-dim)} .term .a{color:var(--term-accent)} .term .g{color:var(--term-ok)}
+.mock{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;min-width:0}
+.mock-bar{display:flex;gap:16px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted);flex-wrap:wrap}
+.mock-bar b{color:var(--text);font-weight:600}
+.mock-bar .on{color:var(--accent);font-weight:600}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);font-weight:500;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.st{font-family:var(--mono);font-size:12px;padding:2px 8px;border-radius:999px}
+.st.ok{background:var(--ok-soft);color:var(--ok)} .st.new{background:var(--accent-dim);color:var(--accent)}
+.examples td:first-child{font-family:var(--mono);font-size:13px;white-space:nowrap}
+.examples .w{color:var(--muted);font-size:13px;margin-top:2px;font-family:var(--sans);white-space:normal}
+.foot{color:var(--dim);font-size:14px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 </style>
 
 <div class="wrap">
-  <header class="hero"><p class="eyebrow">Open-source plugin for Claude Code</p><h1>devconsole: least-privilege plugins and connectors for every project</h1>
-  <p class="lede">Every plugin and connector you turn on adds to the context of every Claude Code session, in every folder. devconsole gives each project only what its work needs, using the model you already know from AWS IAM: projects are users, profiles are groups, and nothing is on unless a profile grants it.</p></header>
-  <h2 class="sec">How a session gets its plugins and connectors</h2>
 
-  <div class="diagram" role="img" aria-label="Flow: you edit profiles and project assignments; the console writes per-project plugin switches and connector lists; plugins are installed once into a shared cache from marketplaces or a claude.ai account; a session started in a folder reads its switches and loads plugins from the cache and the allowed connectors.">
-  <svg viewBox="0 0 1000 640" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-        <path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted)"/>
-      </marker>
-    </defs>
+<section class="hero">
+  <p class="label">Open source · Plugin for Claude Code</p>
+  <h1>Give each project <em>only</em> the plugins it needs.</h1>
+  <p class="sub">Every plugin and connector you turn on loads into every Claude Code session, in every folder. devconsole switches them on per project, the way AWS IAM grants permissions: projects are users, profiles are groups, and nothing is on unless a profile grants it.</p>
+  <div class="stat"><span><b>4 steps</b> from profile to session</span><span><b>1 page</b> for every project</span><span><b>No dependencies</b> beyond Python</span></div>
+</section>
 
-    <!-- Row 1: you decide -->
-    <text x="20" y="28" class="lbl" style="fill:var(--you)">1 · YOU DECIDE</text>
-    <rect x="20" y="40" width="300" height="96" rx="8" style="fill:var(--you-bg);stroke:var(--you)"/>
-    <text x="36" y="66" font-weight="600">Profiles (groups)</text>
-    <text x="36" y="86" class="mono">profiles.json</text>
-    <text x="36" y="108" class="small">lang-python → pyright plugin</text>
-    <text x="36" y="124" class="small">team-chat → Slack connector</text>
-
-    <rect x="350" y="40" width="300" height="96" rx="8" style="fill:var(--you-bg);stroke:var(--you)"/>
-    <text x="366" y="66" font-weight="600">Assignments (users)</text>
-    <text x="366" y="86" class="mono">projects.json</text>
-    <text x="366" y="108" class="small">api-service → code-core, lang-python</text>
-    <text x="366" y="124" class="small">every project → baseline (default)</text>
-
-    <rect x="680" y="40" width="300" height="96" rx="8" style="fill:var(--you-bg);stroke:var(--you)"/>
-    <text x="696" y="66" font-weight="600">Rules</text>
-    <text x="696" y="88" class="small">Allowed = union of attached profiles</text>
-    <text x="696" y="106" class="small">Connectors off unless a profile grants</text>
-    <text x="696" y="124" class="small">An explicit deny always wins</text>
-
-    <!-- arrows to console -->
-    <path d="M170 136 V172 H470" style="fill:none;stroke:var(--muted);stroke-width:1.5" marker-end="url(#ar)"/>
-    <path d="M500 136 V164" style="fill:none;stroke:var(--muted);stroke-width:1.5" marker-end="url(#ar)"/>
-    <path d="M830 136 V172 H530" style="fill:none;stroke:var(--muted);stroke-width:1.5" marker-end="url(#ar)"/>
-
-    <!-- Row 2: console -->
-    <text x="20" y="206" class="lbl" style="fill:var(--tool)">2 · THE CONSOLE APPLIES</text>
-    <rect x="340" y="168" width="320" height="64" rx="8" style="fill:var(--tool-bg);stroke:var(--tool)"/>
-    <text x="500" y="196" text-anchor="middle" font-weight="600">devconsole</text>
-    <text x="500" y="216" text-anchor="middle" class="small">page with switches · CLI · session hook</text>
-
-    <path d="M420 232 V270 H200 V292" style="fill:none;stroke:var(--muted);stroke-width:1.5" marker-end="url(#ar)"/>
-    <path d="M580 232 V270 H800 V292" style="fill:none;stroke:var(--muted);stroke-width:1.5" marker-end="url(#ar)"/>
-    <text x="210" y="264" class="small">writes plugin switches</text>
-    <text x="610" y="264" class="small">writes connector list (backed up first)</text>
-
-    <!-- Row 3: per-project files -->
-    <text x="20" y="288" class="lbl" style="fill:var(--file)">3 · PER-PROJECT FILES</text>
-    <rect x="20" y="296" width="380" height="104" rx="8" style="fill:var(--file-bg);stroke:var(--file)"/>
-    <text x="36" y="320" font-weight="600">Plugin switches (one per project)</text>
-    <text x="36" y="340" class="mono">api-service/.claude/settings.local.json</text>
-    <text x="36" y="362" class="mono" style="fill:var(--muted)">"enabledPlugins": {</text>
-    <text x="52" y="378" class="mono" style="fill:var(--muted)">"engineering@…": true, "pyright-lsp@…": true }</text>
-
-    <rect x="600" y="296" width="380" height="104" rx="8" style="fill:var(--file-bg);stroke:var(--file)"/>
-    <text x="616" y="320" font-weight="600">Connectors off (anything not granted)</text>
-    <text x="616" y="340" class="mono">~/.claude.json → projects → api-service</text>
-    <text x="616" y="362" class="mono" style="fill:var(--muted)">"disabledMcpServers": [</text>
-    <text x="632" y="378" class="mono" style="fill:var(--muted)">"claude.ai Slack", "claude.ai Gmail", … ]</text>
-
-    <!-- Row 4: sources and cache -->
-    <text x="20" y="440" class="lbl" style="fill:var(--src)">4 · WHERE PLUGIN FILES COME FROM (INSTALLED ONCE)</text>
-    <rect x="20" y="452" width="180" height="62" rx="8" style="fill:var(--src-bg);stroke:var(--src)"/>
-    <text x="34" y="476" font-weight="600" font-size="13">Official marketplace</text>
-    <text x="34" y="496" class="small">dev tools, any login</text>
-    <rect x="212" y="452" width="180" height="62" rx="8" style="fill:var(--src-bg);stroke:var(--src)"/>
-    <text x="226" y="476" font-weight="600" font-size="13">Anthropic directory</text>
-    <text x="226" y="496" class="small">knowledge-work plugins</text>
-    <rect x="404" y="452" width="180" height="62" rx="8" style="fill:var(--src-bg);stroke:var(--src)"/>
-    <text x="418" y="476" font-weight="600" font-size="13">Your local marketplace</text>
-    <text x="418" y="496" class="small">your own plugins</text>
-    <rect x="596" y="452" width="180" height="62" rx="8" style="fill:var(--src-bg);stroke:var(--src);stroke-dasharray:5 4"/>
-    <text x="610" y="476" font-weight="600" font-size="13">claude.ai account sync</text>
-    <text x="610" y="496" class="small">logged-in account only</text>
-
-    <rect x="796" y="452" width="184" height="62" rx="8" style="fill:var(--off-bg);stroke:var(--off);stroke-dasharray:3 4"/>
-    <text x="810" y="476" font-weight="600" font-size="13" style="fill:var(--muted)">Desktop app plugins</text>
-    <text x="810" y="496" class="small">separate; not read by Code</text>
-
-    <path d="M110 514 V536 H686 V514" style="fill:none;stroke:var(--src);stroke-width:1.2"/>
-    <path d="M302 514 V536 M494 514 V536" style="fill:none;stroke:var(--src);stroke-width:1.2"/>
-    <path d="M380 536 V556" style="fill:none;stroke:var(--src);stroke-width:1.5" marker-end="url(#ar)"/>
-    <rect x="190" y="560" width="380" height="58" rx="8" style="fill:var(--panel);stroke:var(--src)"/>
-    <text x="380" y="584" text-anchor="middle" font-weight="600">Shared plugin cache (one copy each)</text>
-    <text x="380" y="604" text-anchor="middle" class="mono">~/.claude/plugins/cache/&lt;source&gt;/&lt;plugin&gt;/</text>
-
-    <!-- Row 5: session -->
-    <rect x="660" y="560" width="320" height="58" rx="8" style="fill:var(--tool-bg);stroke:var(--tool);stroke-width:1.5"/>
-    <text x="820" y="584" text-anchor="middle" font-weight="600">5 · A session starts in api-service</text>
-    <text x="820" y="604" text-anchor="middle" class="small">reads its switches, then loads only those</text>
-
-    <path d="M400 348 H590 V578 H656" style="fill:none;stroke:var(--file);stroke-width:1.5" marker-end="url(#ar)"/>
-    <path d="M790 400 V548" style="fill:none;stroke:var(--file);stroke-width:1.5" marker-end="url(#ar)"/>
-    <path d="M660 606 H574" style="fill:none;stroke:var(--tool);stroke-width:1.5" marker-end="url(#ar)"/>
-    <text x="578" y="634" class="small">loads skills from the cache</text>
-  </svg>
-  </div>
-
-  <div class="legend" aria-hidden="true">
-    <span><i class="sw" style="background:var(--you)"></i>What you edit</span>
-    <span><i class="sw" style="background:var(--tool)"></i>Tools that act</span>
-    <span><i class="sw" style="background:var(--file)"></i>Files written per project</span>
-    <span><i class="sw" style="background:var(--src)"></i>Plugin sources</span>
-    <span><i class="sw" style="background:var(--off)"></i>Not used by Claude Code</span>
-  </div>
-
-  <div class="cols">
-    <div class="col">
-      <h2>Install once, switch per project</h2>
-      <p>A plugin's files live in one shared cache. Turning it on for a project adds one line to that project's <code>settings.local.json</code>. Nothing is copied into the project folder.</p>
+<section>
+  <p class="label">How it works</p>
+  <h2>How a session gets its plugins and connectors</h2>
+  <div class="flow">
+    <div class="step">
+      <div class="rail"><span class="num">1</span><span class="line"></span></div>
+      <div class="body">
+        <h3 class="big">Write small profiles</h3>
+        <p class="why">A profile is a named bundle for one kind of work. Keep each one small so they combine.</p>
+        <div class="tiles">
+          <div class="tile"><span class="k">lang-python</span><span class="v"><span class="arrow">→</span> Python code intelligence plugin</span></div>
+          <div class="tile"><span class="k">team-chat</span><span class="v"><span class="arrow">→</span> Slack connector</span></div>
+          <div class="tile"><span class="k">baseline</span><span class="v"><span class="arrow">→</span> what every project gets</span></div>
+        </div>
+      </div>
     </div>
-    <div class="col">
-      <h2>Login matters only for synced plugins</h2>
-      <p>Marketplace plugins install on any account. Plugins synced from claude.ai load only while you're logged into the account that has them, so prefer the marketplace version when both exist.</p>
+    <div class="step">
+      <div class="rail"><span class="num">2</span><span class="line"></span></div>
+      <div class="body">
+        <h3 class="big">Attach profiles to each project</h3>
+        <p class="why">A project gets everything its profiles grant, and nothing else.</p>
+        <div class="tiles">
+          <div class="tile"><span class="k">api-service</span><span><span class="chip pf">baseline</span><span class="chip pf">code-core</span><span class="chip pf">lang-python</span></span></div>
+        </div>
+      </div>
     </div>
-    <div class="col">
-      <h2>Changes land at the next session</h2>
-      <p>Plugins and connectors load when a session starts, based on the folder it starts in. For work that crosses projects, start in a workspace folder that has its own profiles and access to the other folders.</p>
+    <div class="step">
+      <div class="rail"><span class="num">3</span><span class="line"></span></div>
+      <div class="body">
+        <h3 class="big">devconsole writes that project's switches</h3>
+        <p class="why">Which plugins are on and which connectors are off, in Claude Code's own settings. It backs them up first.</p>
+        <div class="tiles">
+          <div class="tile"><span class="v">Plugins on</span><span><span class="chip on">engineering</span><span class="chip on">pyright-lsp</span></span><span class="file">api-service/.claude/settings.local.json</span></div>
+          <div class="tile"><span class="v">Connectors off</span><span><span class="chip off">Slack</span><span class="chip off">Gmail</span><span class="chip off">Drive</span><span class="chip off">…</span></span><span class="file">~/.claude.json</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="rail"><span class="num">4</span><span class="line"></span></div>
+      <div class="body">
+        <h3 class="big">A session loads only that list</h3>
+        <p class="why">Open Claude Code in <code>api-service</code> and it gets engineering, Python intelligence and the baseline connector. Nothing from your other projects comes along.</p>
+      </div>
     </div>
   </div>
+</section>
 
-  <h2 class="sec">The rules</h2>
-  <div class="cards">
-    <div class="card"><h3>Allow is a union</h3><p>A project gets the plugins and connectors of every profile attached to it, plus the default profiles every project gets.</p></div>
-    <div class="card"><h3>Connectors are denied by default</h3><p>A connector is on only where a profile grants it. A connector your account adds later starts off everywhere.</p></div>
-    <div class="card"><h3>An explicit deny wins</h3><p>A profile can deny a plugin or connector, and that beats any grant. One-off per-project exceptions exist, but the page flags them so they don't pile up.</p></div>
+<section>
+  <p class="label">Where plugins come from</p>
+  <h2>Installed once, shared by every project</h2>
+  <p class="desc">Plugin files download one time into a shared cache. Turning a plugin on for a project adds one line to that project's settings. Nothing is copied into the project.</p>
+  <div class="grid">
+    <div class="card"><span class="tag">Works on any account</span><h3>Official marketplace</h3><p>Developer tools: language servers, browser testing, Terraform.</p></div>
+    <div class="card"><span class="tag">Works on any account</span><h3>Anthropic plugin directory</h3><p>Knowledge-work plugins: engineering, legal, finance, sales, marketing.</p></div>
+    <div class="card"><span class="tag">This machine</span><h3>Your own marketplace</h3><p>Plugins you write, kept in a local folder.</p></div>
+    <div class="card"><span class="tag">Signed-in account only</span><h3>claude.ai sync</h3><p>Plugins added to your claude.ai account. They load only while you're signed into that account.</p></div>
   </div>
+  <p class="note"><b>Prefer marketplace plugins when both exist.</b> They work on any login. Plugins installed in the Claude desktop app live in a separate store that Claude Code doesn't read.</p>
+</section>
 
-  <h2 class="sec">What you get</h2>
-  <div class="cards">
-    <div class="card"><h3>One page for every project</h3><p>A local page lists each project, its profiles and its status (ok, drift, missing, new), with switches. Every change previews the projects it affects before it applies.</p></div>
-    <div class="card"><h3>New folders don't slip through</h3><p>A session-start hook notices a folder with no profile and offers <code>/project-setup</code>, an interview that looks at the stack and proposes a set of profiles.</p></div>
-    <div class="card"><h3>A lifecycle for capabilities</h3><p>New plugins and connectors land in an inbox. Add one to a few profiles, or to the default profile to turn it on everywhere. Retire an old one from every profile at once.</p></div>
-    <div class="card"><h3>Workspaces for cross-project work</h3><p>A small folder that grants a session access to several projects, with its own profiles. In IAM terms, a role you take on for one kind of work.</p></div>
-    <div class="card"><h3>Careful with your settings</h3><p>Changes go through Claude Code's own plugin commands. Settings are backed up before each write, every change is logged, and nothing is deleted. The page listens on localhost only and needs a per-run token.</p></div>
-    <div class="card"><h3>Small and dependency-free</h3><p>Python standard library and one HTML file. The plugin itself adds a couple of hundred tokens to a session; the profiles it manages decide the rest.</p></div>
-  </div>
-
-  <h2 class="sec">Try it</h2>
-<pre>/plugin marketplace add &lt;owner&gt;/devconsole
+<section>
+  <p class="label">Walkthrough</p>
+  <h2>Running it</h2>
+  <div class="walk">
+    <div class="wstep">
+      <div class="t"><h3>1 · Install and point it at your projects</h3><p>Add the plugin, then run setup once. It asks where your projects live and copies in starter profiles.</p></div>
+<pre class="term"><span class="c"># in Claude Code</span>
+/plugin marketplace add &lt;owner&gt;/devconsole
 /plugin install devconsole@devconsole
-/project-setup init      # pick your projects folder, then set up each project
-devconsole               # open the page (or /devconsole in a session)</pre>
-  <p class="foot">Profiles live in two small JSON files you own. The plugin ships with starter profiles and sends nothing anywhere.</p>
+/project-setup init
+<span class="a">?</span> Where do your projects live?  <span class="g">~/code</span>
+<span class="g">✔</span> 6 projects found, 6 new</pre>
+    </div>
+    <div class="wstep">
+      <div class="t"><h3>2 · Set up a project</h3><p>Open a session in a project. The hook sees it has no profile and offers an interview: it reads the stack, asks one round of questions and proposes profiles.</p></div>
+<pre class="term"><span class="c">devconsole: api-service has no profile. Offer /project-setup.</span>
+<span class="a">found</span>     pyproject.toml, FastAPI, Dockerfile
+<span class="a">?</span> What will you mostly do here?  <span class="g">Build and fix code</span>
+<span class="a">?</span> Does it touch sensitive data?  <span class="g">Yes</span>
+<span class="a">proposal</span>  code-core · lang-python · secure-code
+<span class="g">✔</span> Applied. Takes effect in your next session.</pre>
+    </div>
+    <div class="wstep">
+      <div class="t"><h3>3 · See every project on one page</h3><p>Type <code>devconsole</code> in a terminal. Each project shows its profiles and status. Attach or detach a profile with a click. Every change previews the projects it touches before it applies.</p></div>
+      <div class="mock">
+        <div class="mock-bar"><b>devconsole</b><span class="on">Projects</span><span>Profiles</span><span>Capabilities</span></div>
+        <div class="scroll"><table>
+          <thead><tr><th>Project</th><th>Status</th><th>Profiles</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">api-service</td><td><span class="st ok">ok</span></td><td><span class="chip pf">code-core</span><span class="chip pf">lang-python</span><span class="chip pf">secure-code</span></td></tr>
+            <tr><td class="mono">marketing-site</td><td><span class="st ok">ok</span></td><td><span class="chip pf">web-design</span><span class="chip pf">marketing</span></td></tr>
+            <tr><td class="mono">scratch</td><td><span class="st new">new</span></td><td><span class="file">no profile yet</span></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+    <div class="wstep">
+      <div class="t"><h3>4 · Keep it current</h3><p>New plugins and connectors land in an inbox. Add one to a few profiles, or to <code>baseline</code> to turn it on everywhere. Retire an old one from every profile at once.</p></div>
+<pre class="term"><span class="c">$</span> devconsole inbox
+<span class="a">new</span>      Linear (connector)
+<span class="c">$</span> devconsole capability adopt Linear --profiles planning --dry-run
+<span class="a">affects</span>  roadmap, api-service
+<span class="c">$</span> devconsole capability adopt Linear --profiles planning
+<span class="g">✔</span> 2 projects updated</pre>
+    </div>
+  </div>
+</section>
+
+<section>
+  <p class="label">Examples</p>
+  <h2>Example projects and what they load</h2>
+  <div class="mock scroll"><table class="examples">
+    <thead><tr><th>Project</th><th>Profiles</th><th>Plugins on</th><th>Connectors on</th></tr></thead>
+    <tbody>
+      <tr><td>api-service<div class="w">Python service with customer data</div></td><td><span class="chip pf">code-core</span><span class="chip pf">lang-python</span><span class="chip pf">secure-code</span></td><td><span class="chip on">engineering</span><span class="chip on">pyright-lsp</span><span class="chip on">security-guidance</span></td><td><span class="chip on">baseline only</span></td></tr>
+      <tr><td>marketing-site<div class="w">Static site and blog</div></td><td><span class="chip pf">web-design</span><span class="chip pf">marketing</span><span class="chip pf">docs</span></td><td><span class="chip on">frontend-design</span><span class="chip on">typescript-lsp</span><span class="chip on">marketing</span></td><td><span class="chip on">Google Docs</span></td></tr>
+      <tr><td>client-files<div class="w">Contracts and proposals</div></td><td><span class="chip pf">legal</span><span class="chip pf">mail</span></td><td><span class="chip on">legal</span></td><td><span class="chip on">Gmail</span><span class="chip on">Drive</span></td></tr>
+      <tr><td>mobile-app<div class="w">Expo app</div></td><td><span class="chip pf">mobile-expo</span><span class="chip pf">lang-typescript</span></td><td><span class="chip on">expo</span><span class="chip on">typescript-lsp</span></td><td><span class="chip on">baseline only</span></td></tr>
+      <tr><td>notes<div class="w">Personal notes</div></td><td><span class="chip pf">baseline</span></td><td><span class="file">none</span></td><td><span class="chip on">baseline only</span></td></tr>
+      <tr><td>launch-room<div class="w">Workspace spanning the site, the service and client files</div></td><td><span class="chip pf">web-design</span><span class="chip pf">marketing</span><span class="chip pf">mail</span></td><td><span class="chip on">frontend-design</span><span class="chip on">marketing</span></td><td><span class="chip on">Gmail</span><span class="chip on">Drive</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="desc">A workspace is a small folder that gives one session access to several projects, with its own profiles. Use one when the work crosses projects, because a session only loads what its starting folder allows.</p>
+</section>
+
+<section>
+  <p class="label">The rules</p>
+  <h2>Three rules, borrowed from IAM</h2>
+  <div class="grid">
+    <div class="card"><h3>Allow is a union</h3><p>A project gets everything its attached profiles grant, plus the default profile every project gets.</p></div>
+    <div class="card"><h3>Connectors start off</h3><p>A connector is on only where a profile grants it. One your account adds later starts off everywhere.</p></div>
+    <div class="card"><h3>A deny wins</h3><p>A profile can deny a plugin or connector, and that beats any grant. One-off exceptions are possible, and the page flags them.</p></div>
+  </div>
+</section>
+
+<section>
+  <p class="label">Try it</p>
+  <h2>Two commands to start</h2>
+<pre class="term">/plugin marketplace add &lt;owner&gt;/devconsole
+/plugin install devconsole@devconsole</pre>
+  <p class="foot">Python standard library and one HTML page. It runs on your machine, listens on localhost only, backs up settings before every write and sends nothing anywhere.</p>
+</section>
 
 </div>
