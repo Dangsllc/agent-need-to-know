@@ -625,5 +625,257 @@ class TestServer(Env):
         self.assertEqual(self.req("POST", "/api/nope", {})[0], 404)
 
 
+class TestCapabilities(Env):
+    def setUp(self):
+        super().setUp()
+        self.cfg = dc.load_config()
+        self.out = []
+        self.capf = os.path.join(self.data, "capabilities.json")
+        self.app = os.path.join(self.root, "app")
+        self.lists[self.app] = [{"id": "a@x", "enabled": True}, {"id": "b@x", "enabled": True}]
+
+    def caps(self):
+        return jload(self.capf)["capabilities"]
+
+    def statuses(self):
+        return {i: e["status"] for i, e in self.caps().items()}
+
+    def manifest(self, org, names, desc=None):
+        d = os.path.join(self.t, "home", "plugins", "synced", org + "_x")
+        os.makedirs(d, exist_ok=True)
+        jdump({"plugins": [{"name": n} for n in names]}, os.path.join(d, "manifest.json"))
+        for n in names:
+            os.makedirs(os.path.join(d, n, ".claude-plugin"), exist_ok=True)
+            jdump({"name": n, "description": desc or ""}, os.path.join(d, n, ".claude-plugin", "plugin.json"))
+
+    def test_first_run_seeds_everything_active(self):
+        self.assertFalse(os.path.exists(self.capf))
+        dc.scan(self.cfg, fresh=True)
+        st = self.statuses()
+        self.assertEqual(set(st.values()), {"active"})
+        for i in ("a@x", "b@x", "Gmail", "Docs", "c@x"):  # seen plugins, connectors, profile refs
+            self.assertIn(i, st)
+        self.assertEqual(self.caps()["c@x"]["last_seen"], "")  # referenced, never seen
+        self.assertEqual(self.caps()["Gmail"]["kind"], "connector")
+
+    def test_new_detected_after_seed_and_gone(self):
+        dc.scan(self.cfg, fresh=True)
+        self.lists[self.app].append({"id": "n@x", "enabled": False})
+        st = dc.scan(self.cfg, fresh=True)
+        self.assertEqual(self.statuses()["n@x"], "new")
+        self.assertEqual(st["inbox"]["new"], ["n@x"])
+        # b@x disappears everywhere
+        self.lists[self.app] = [{"id": "a@x", "enabled": True}]
+        st = dc.scan(self.cfg, fresh=True)
+        self.assertEqual(self.statuses()["b@x"], "gone")
+        self.assertIn("b@x", st["inbox"]["gone"])
+        self.assertEqual(self.statuses()["c@x"], "active")  # never seen: not gone
+        self.assertTrue(self.caps()["b@x"]["last_seen"])
+        # comes back
+        self.lists[self.app].append({"id": "b@x", "enabled": True})
+        dc.scan(self.cfg, fresh=True)
+        self.assertEqual(self.statuses()["b@x"], "active")
+
+    def test_org_availability_keeps_item_not_gone(self):
+        self.manifest("orga1111", ["eng"], desc="Engineering skills")
+        self.lists[self.app].append({"id": "eng@synced", "enabled": True})
+        dc.scan(self.cfg, fresh=True)
+        self.lists[self.app] = [{"id": "a@x", "enabled": True}]
+        dc.scan(self.cfg, fresh=True)
+        self.assertEqual(self.statuses()["eng@synced"], "active")
+        self.assertEqual(self.caps()["eng@synced"]["seen_on_orgs"], ["orga1111"])
+
+    def test_incomplete_scan_never_marks_gone(self):
+        dc.scan(self.cfg, fresh=True)
+        dc.fetch_connectors = lambda root: []
+        self.write_cache(None)
+        self.lists[self.app] = []
+        dc.scan(self.cfg, fresh=True)
+        self.assertNotIn("gone", self.statuses().values())
+
+    def test_inbox_output(self):
+        self.manifest("orga1111", ["eng"], desc="Engineering skills")
+        dc.scan(self.cfg, fresh=True)
+        self.manifest("orga1111", ["eng", "newone"], desc="Shiny")
+        dc.scan(self.cfg, fresh=True)
+        self.lists[self.app] = [{"id": "a@x", "enabled": True}]
+        dc.scan(self.cfg, fresh=True)
+        out = []
+        dc.show_inbox(self.cfg, out=out.append)
+        text = "\n".join(out)
+        self.assertIn("New (1)", text)
+        self.assertIn("newone@synced", text)
+        self.assertIn("orga1111", text)
+        self.assertIn("Shiny", text)
+        self.assertIn("Gone (1)", text)
+        self.assertIn("b@x", text)
+        self.assertIn("ts", text)  # profile still referencing the gone item
+
+    def test_ignore(self):
+        dc.scan(self.cfg, fresh=True)
+        self.lists[self.app].append({"id": "n@x", "enabled": False})
+        dc.scan(self.cfg, fresh=True)
+        dc.capability_ignore(self.cfg, "n@x", out=self.out.append)
+        self.assertEqual(self.statuses()["n@x"], "ignored")
+        self.assertEqual(dc.scan(self.cfg, fresh=True)["inbox"]["new"], [])
+        self.assertEqual(self.statuses()["n@x"], "ignored")
+
+    def test_adopt_writes_profiles_and_dry_run_shape(self):
+        dc.scan(self.cfg, fresh=True)
+        self.lists[self.app].append({"id": "n@x", "enabled": False})
+        dc.scan(self.cfg, fresh=True)
+        before = slurp(os.path.join(self.data, "profiles.json"))
+        rc, aff, profs = dc.capability_adopt(self.cfg, "n@x", ["py", "base"], dry=True, out=self.out.append)
+        self.assertEqual(rc, 0)
+        self.assertEqual(profs, ["py", "base"])
+        self.assertEqual(sorted(a["path"] for a in aff), ["app", "other"])  # base is a default: all projects
+        self.assertEqual(slurp(os.path.join(self.data, "profiles.json")), before)
+        self.assertEqual(self.statuses()["n@x"], "new")
+        rc, _, _ = dc.capability_adopt(self.cfg, "n@x", ["py"], apply=False, out=self.out.append)
+        self.assertEqual(self.profiles()["py"]["plugins"], ["a@x", "n@x"])
+        self.assertEqual(self.statuses()["n@x"], "active")
+        self.assertEqual(dc.capability_adopt(self.cfg, "n@x", ["nope"], out=self.out.append)[0], 2)
+
+    def test_adopt_connector_global(self):
+        dc.capability_adopt(self.cfg, "Gmail", ["base"], apply=False, out=self.out.append)
+        self.assertIn("Gmail", self.profiles()["base"]["connectors"])
+
+    def test_retire_removes_everywhere_and_stays_retired(self):
+        pf = jload(os.path.join(self.data, "profiles.json"))
+        pf["profiles"]["sec"]["plugins"].append("a@x")
+        jdump(pf, os.path.join(self.data, "profiles.json"))
+        d = self.projects()
+        d["other"]["inline"] = {"plugins_on": ["a@x"], "plugins_off": ["a@x"]}
+        jdump({"projects": d}, os.path.join(self.data, "projects.json"))
+        dc.scan(self.cfg, fresh=True)
+        rc, aff, hit = dc.capability_retire(self.cfg, "a@x", dry=True, out=self.out.append)
+        self.assertEqual(sorted(hit), ["py", "sec"])
+        self.assertEqual(sorted(a["path"] for a in aff), ["app", "other"])
+        self.assertIn("a@x", self.profiles()["py"]["plugins"])  # dry run wrote nothing
+        dc.capability_retire(self.cfg, "a@x", apply=False, out=self.out.append)
+        for n, p in self.profiles().items():
+            self.assertNotIn("a@x", p["plugins"])
+        self.assertNotIn("inline", self.projects()["other"])
+        self.assertEqual(self.statuses()["a@x"], "retired")
+        # still installed and listed: stays retired, shows under scan -v data
+        st = dc.scan(self.cfg, fresh=True)
+        self.assertEqual(self.statuses()["a@x"], "retired")
+        self.assertEqual(st["inbox"], {"new": [], "gone": []})
+        row = [c for c in st["capabilities"] if c["id"] == "a@x"][0]
+        self.assertTrue(row["seen_now"])
+
+    def test_retire_applies_to_affected(self):
+        self.lists[self.app] = [{"id": "a@x", "enabled": True}, {"id": "b@x", "enabled": True}]
+        dc.scan(self.cfg, fresh=True)
+        dc.capability_retire(self.cfg, "a@x", out=self.out.append)
+        self.assertIn((["claude", "plugin", "disable", "a@x", "--scope", "local"], self.app), self.cmds)
+
+    def test_list_filters(self):
+        dc.scan(self.cfg, fresh=True)
+        out = []
+        dc.list_caps(self.cfg, "retired", out=out.append)
+        self.assertEqual(out, [])
+        dc.list_caps(self.cfg, "active", out=out.append)
+        self.assertTrue(any(l.endswith("Gmail") for l in out))
+
+    def test_hook_hint_once_per_day_and_file_only(self):
+        dc.scan(self.cfg, fresh=True)
+        self.assertEqual(self.check(os.path.join(self.root, "newone")).count("capabilit"), 0)
+        d = jload(self.capf)
+        d["capabilities"]["zz@x"] = {"kind": "plugin", "status": "new", "first_seen": "t", "last_seen": "t",
+                                     "seen_on_orgs": [], "note": ""}
+        jdump(d, self.capf)
+        self.cmds.clear()
+        first = self.check(os.path.join(self.root, "newone"))
+        self.assertIn("devconsole: 1 new capability waiting in the inbox (run `devconsole` to review).", first)
+        self.assertEqual(self.check(os.path.join(self.root, "newone")).count("waiting in the inbox"), 0)
+        self.assertEqual(self.cmds, [])
+        # silent path with a hint when a new day starts
+        sp = os.path.join(os.path.dirname(self.cfgfile), ".capabilities-hint.json")
+        jdump({"date": "2000-01-01"}, sp)
+        d["capabilities"]["zz2@x"] = dict(d["capabilities"]["zz@x"])
+        jdump(d, self.capf)
+        os.makedirs(os.path.join(self.root, "app", ".claude"))
+        jdump({"enabledPlugins": {"a@x": True, "b@x": True}},
+              os.path.join(self.root, "app", ".claude", "settings.local.json"))
+        jdump({"projects": {self.app: {"disabledMcpServers": ["claude.ai Gmail", "claude.ai Stripe"]}}}, self.cj)
+        out = json.loads(self.check(self.app))
+        self.assertEqual(out["hookSpecificOutput"]["additionalContext"],
+                         "devconsole: 2 new capabilities waiting in the inbox (run `devconsole` to review).")
+
+
+class TestDenyAndDefaults(Env):
+    def setUp(self):
+        super().setUp()
+        self.cfg = dc.load_config()
+        self.out = []
+
+    def test_deny_undeny_and_extra_keys_kept(self):
+        pf = jload(os.path.join(self.data, "profiles.json"))
+        pf["profiles"]["py"]["_about"] = "keep me"
+        jdump(pf, os.path.join(self.data, "profiles.json"))
+        dc.profile_edit(self.cfg, "py", "deny", "plugin", "q@x", apply=False, out=self.out.append)
+        dc.profile_edit(self.cfg, "py", "deny", "connector", "claude.ai Gmail", apply=False, out=self.out.append)
+        p = self.profiles()["py"]
+        self.assertEqual((p["deny_plugins"], p["deny_connectors"], p["_about"]), (["q@x"], ["Gmail"], "keep me"))
+        self.assertEqual(dc.profile_edit(self.cfg, "py", "deny", "plugin", "q@x", apply=False, out=self.out.append)[0], 0)
+        dc.profile_edit(self.cfg, "py", "undeny", "plugin", "q@x", apply=False, out=self.out.append)
+        self.assertNotIn("deny_plugins", self.profiles()["py"])
+        self.assertEqual(dc.profile_edit(self.cfg, "py", "undeny", "plugin", "q@x", apply=False, out=self.out.append)[0], 2)
+
+    def test_profile_default_add_remove_dry(self):
+        path = os.path.join(self.data, "profiles.json")
+        before = slurp(path)
+        rc, aff = dc.profile_default(self.cfg, "add", "py", dry=True, out=self.out.append)
+        self.assertEqual((rc, sorted(a["path"] for a in aff)), (0, ["app", "other"]))
+        self.assertEqual(slurp(path), before)
+        dc.profile_default(self.cfg, "add", "py", apply=False, out=self.out.append)
+        self.assertEqual(jload(path)["default_profiles"], ["base", "py"])
+        dc.profile_default(self.cfg, "remove", "base", apply=False, out=self.out.append)
+        self.assertEqual(jload(path)["default_profiles"], ["py"])
+        self.assertEqual(dc.profile_default(self.cfg, "remove", "base", apply=False, out=self.out.append)[0], 2)
+        self.assertEqual(dc.profile_default(self.cfg, "add", "zzz", apply=False, out=self.out.append)[0], 2)
+
+
+class TestCapabilityApi(Env):
+    def setUp(self):
+        super().setUp()
+        self.token = "tok"
+        self.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), dc.make_handler(dc.load_config(), self.token))
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+
+    def tearDown(self):
+        self.srv.shutdown()
+        self.srv.server_close()
+        super().tearDown()
+
+    def post(self, path, body, token=True):
+        c = http.client.HTTPConnection("127.0.0.1", self.srv.server_address[1], timeout=30)
+        h = {"Content-Type": "application/json"}
+        if token:
+            h["X-Devconsole-Token"] = self.token
+        c.request("POST", path, json.dumps(body), h)
+        r = c.getresponse()
+        return r.status, json.loads(r.read() or b"{}")
+
+    def test_capability_endpoints(self):
+        self.assertEqual(self.post("/api/capability", {"action": "ignore", "id": "x"}, token=False)[0], 403)
+        self.assertEqual(self.post("/api/capability", {"action": "adopt", "id": "x"})[0], 400)  # no profiles
+        code, r = self.post("/api/capability", {"action": "adopt", "id": "n@x", "profiles": ["py"], "dry_run": True})
+        self.assertEqual(code, 200)
+        self.assertEqual([a["path"] for a in r["affected"]], ["app"])
+        self.assertNotIn("n@x", self.profiles()["py"]["plugins"])
+        code, r = self.post("/api/capability", {"action": "retire", "id": "a@x", "dry_run": True})
+        self.assertEqual(r["profiles"], ["py"])
+        code, r = self.post("/api/capability", {"action": "ignore", "id": "n@x"})
+        self.assertEqual(code, 200)
+        self.assertIn("inbox", r["state"])
+        code, r = self.post("/api/profile-default", {"op": "add", "name": "py", "dry_run": True})
+        self.assertEqual(code, 200)
+        self.assertEqual(len(r["affected"]), 2)
+        code, r = self.post("/api/profile", {"name": "py", "op": "deny", "kind": "plugin", "id": "q@x", "dry_run": True})
+        self.assertEqual(code, 200)
+
+
 if __name__ == "__main__":
     unittest.main()

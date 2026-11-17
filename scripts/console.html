@@ -105,6 +105,15 @@ td.path small{display:block;color:var(--muted);font-weight:400;max-width:220px;w
 .card .projs a{color:var(--accent);cursor:pointer;font-size:12.5px;margin-right:8px;white-space:nowrap;text-decoration:underline}
 .confirmbox{margin-top:8px;border:1px solid var(--warn);background:var(--warn-bg);border-radius:6px;padding:6px 10px;font-size:12.5px}
 .confirmbox .row{display:flex;gap:6px;margin-top:6px}
+.tabbadge{display:inline-block;margin-left:6px;min-width:18px;padding:0 5px;border-radius:999px;background:var(--warn);color:#fff;font-size:11px;line-height:17px;text-align:center}
+.notice{margin:10px 0 0;padding:6px 10px;border:1px solid var(--warn);background:var(--warn-bg);border-radius:6px;font-size:12.5px}
+.notice a{color:var(--accent);text-decoration:underline;cursor:pointer}
+.inbox-item{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.inbox-item:last-child{border-bottom:0}
+.inbox-item .grow{flex:1 1 260px;min-width:0}
+.picker{margin:6px 0;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.picker label{display:inline-block;margin:2px 10px 2px 0;white-space:nowrap;font-size:12.5px}
+.picker h4{margin:6px 0 2px;font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.04em}
 .tag{font-size:10.5px;font-weight:700;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-left:6px}
 @media (max-width:600px){ h1{font-size:16px} }
 </style>
@@ -124,11 +133,13 @@ td.path small{display:block;color:var(--muted);font-weight:400;max-width:220px;w
   <div class="tabs" role="tablist">
     <button class="tab" id="tab-projects" role="tab" type="button" aria-selected="true">Projects</button>
     <button class="tab" id="tab-profiles" role="tab" type="button" aria-selected="false">Profiles</button>
+    <button class="tab" id="tab-capabilities" role="tab" type="button" aria-selected="false">Capabilities<span class="tabbadge hide" id="capbadge"></span></button>
   </div>
 </header>
 <main>
   <div id="banners"></div>
   <section id="view-projects">
+    <div class="notice hide" id="capnote"></div>
     <div class="panel hide" id="newp"><h2>New folders</h2><div id="newlist"></div></div>
     <div class="tablewrap"><table>
       <thead><tr id="thead"></tr></thead>
@@ -141,12 +152,23 @@ td.path small{display:block;color:var(--muted);font-weight:400;max-width:220px;w
     <div id="newprof-form"></div>
     <div class="groups" id="groups"></div>
   </section>
+  <section id="view-capabilities" class="hide">
+    <div class="panel" id="inbox"></div>
+    <div id="capconfirm"></div>
+    <div class="tablewrap"><table style="min-width:900px">
+      <thead><tr><th>Capability</th><th>Kind</th><th>Status</th><th>First seen</th><th>Last seen</th><th>Orgs</th><th>Granted by</th><th>Projects</th><th></th></tr></thead>
+      <tbody id="captbody"></tbody>
+    </table></div>
+  </section>
 </main>
 <script>
 "use strict";
 var BOOT = /*__BOOT__*/null || {token:"",readonly:false,state:null};
 var state = BOOT.state, RO = !!BOOT.readonly;
-var tab = location.hash === "#profiles" ? "profiles" : "projects";
+function tabFromHash(){ return location.hash==="#profiles" ? "profiles" : location.hash==="#capabilities" ? "capabilities" : "projects"; }
+var tab = tabFromHash();
+var capSel = null;        // {id, sel:{profile:true}}  adopt picker
+var capEdit = null;       // dry-run result for adopt/retire, awaiting confirm
 var busy = {};            // key -> label; one request in flight per key
 var menu = null;          // {path, kind, id, naming}
 var pendingEdit = null;   // {name, op, kind, id, affected}
@@ -315,7 +337,17 @@ function render(){
   if(!state) return;
   document.getElementById("view-projects").classList.toggle("hide", tab!=="projects");
   document.getElementById("view-profiles").classList.toggle("hide", tab!=="profiles");
-  ["projects","profiles"].forEach(function(t){ document.getElementById("tab-"+t).setAttribute("aria-selected", String(tab===t)); });
+  document.getElementById("view-capabilities").classList.toggle("hide", tab!=="capabilities");
+  var inb = state.inbox || {new:[],gone:[]}, nInbox = inb.new.length + inb.gone.length;
+  var cbg = document.getElementById("capbadge"); cbg.textContent = String(nInbox); cbg.classList.toggle("hide", !nInbox);
+  var cn = document.getElementById("capnote");
+  cn.classList.toggle("hide", !inb.new.length || tab!=="projects"); cn.textContent = "";
+  if(inb.new.length){
+    cn.appendChild(document.createTextNode(inb.new.length+" new capabilit"+(inb.new.length===1?"y":"ies")+". "));
+    var cl = el("a",null,"Review in Capabilities."); cl.tabIndex=0; cl.setAttribute("role","link");
+    cl.addEventListener("click", function(){ setTab("capabilities"); }); cn.appendChild(cl);
+  }
+  ["projects","profiles","capabilities"].forEach(function(t){ document.getElementById("tab-"+t).setAttribute("aria-selected", String(tab===t)); });
   ["q","sf"].forEach(function(i){ document.getElementById(i).classList.toggle("hide", tab!=="projects"); });
   var o = state.org;
   document.getElementById("org").textContent = "Logged in to " + (o.name||"unknown org") + (o.id8 ? " ("+o.id8+")" : "") + (RO ? "  |  snapshot " : "  |  updated ") + (state.generated||"").replace("T"," ").slice(0,16);
@@ -329,7 +361,7 @@ function render(){
   var ninl = state.projects.reduce(function(a,p){ return a + (p.inline_items||[]).length; }, 0);
   if(ninl) chips.appendChild(el("span","chip inl", ninl+" inline"));
   renderBanners();
-  if(tab==="projects") renderProjects(); else renderProfiles();
+  if(tab==="projects") renderProjects(); else if(tab==="profiles") renderProfiles(); else renderCaps();
 }
 
 function renderBanners(){
@@ -462,32 +494,43 @@ function row(p){
 }
 
 // ------------------------------------------------------------ profiles tab
+var VERBS = {add:"Add",remove:"Remove",deny:"Deny",undeny:"Un-deny"};
+function editReq(e, dry){
+  if(e.kind==="default") return ["/api/profile-default", {name:e.name,op:e.op,dry_run:dry||undefined}];
+  return ["/api/profile", {name:e.name,op:e.op,kind:e.kind,id:e.id,dry_run:dry||undefined}];
+}
 function startEdit(name, op, kind, id){
   if(RO || busy["profile:"+name]) return;
   busy["profile:"+name] = "Checking"; render();
-  api("/api/profile", {name:name,op:op,kind:kind,id:id,dry_run:true}).then(function(j){
+  var rq = editReq({name:name,op:op,kind:kind,id:id}, true);
+  api(rq[0], rq[1]).then(function(j){
     pendingEdit = {name:name,op:op,kind:kind,id:id,affected:j.affected||[],msgs:j.messages||[],ok:j.ok};
     if(!j.ok) setMsg((j.messages||[]).join("; "), true);
   }).catch(function(e){ setMsg("Failed: "+e.message, true); })
     .then(function(){ delete busy["profile:"+name]; render(); });
 }
-function confirmBlock(pe){
+function confirmUI(title, affected, key, ok, onApply, onCancel){
   var b = el("div","confirmbox");
-  var n = pe.affected.length;
-  b.appendChild(document.createTextNode((pe.op==="add"?"Add ":"Remove ")+pe.kind+" "+pe.id+". Affects "+n+" project"+(n===1?"":"s")+(n?": ":".")));
-  pe.affected.forEach(function(a, i){
+  var n = affected.length;
+  b.appendChild(document.createTextNode(title+" Affects "+n+" project"+(n===1?"":"s")+(n?": ":".")));
+  affected.forEach(function(a, i){
     b.appendChild(document.createTextNode((i?"; ":"")+(a.path==="."?"(root)":a.path)+" ("+(a.changes.length ? a.changes.join(", ") : (a.note||"no change"))+")"));
   });
-  var r = el("div","row");
-  var key = "profile:"+pe.name, working = !!busy[key];
-  r.appendChild(btn(working?"Applying...":"Apply","btn sm primary", function(){
-    var e = pendingEdit; pendingEdit = null;
-    act(key, [["/api/profile",{name:e.name,op:e.op,kind:e.kind,id:e.id}]], "Updating "+e.name);
-  }, working || !pe.ok));
-  r.appendChild(btn("Cancel","btn sm", function(){ pendingEdit=null; render(); }, working));
+  var r = el("div","row"), working = !!busy[key];
+  r.appendChild(btn(working?"Applying...":"Apply","btn sm primary", onApply, working || !ok));
+  r.appendChild(btn("Cancel","btn sm", onCancel, working));
   if(working){ var w=el("span","working"); w.appendChild(el("span","spin")); r.appendChild(w); }
   b.appendChild(r);
   return b;
+}
+function confirmBlock(pe){
+  var what = pe.kind==="default" ? (pe.op==="add" ? "Make "+pe.name+" a default profile." : "Remove "+pe.name+" from the default profiles.")
+                                 : VERBS[pe.op]+" "+pe.kind+" "+pe.id+".";
+  var key = "profile:"+pe.name;
+  return confirmUI(what, pe.affected, key, pe.ok, function(){
+    var e = pendingEdit; pendingEdit = null; var rq = editReq(e, false);
+    act(key, [rq], "Updating "+e.name);
+  }, function(){ pendingEdit=null; render(); });
 }
 function renderProfiles(){
   var nf = document.getElementById("newprof-form"); nf.textContent="";
@@ -534,14 +577,25 @@ function card(name, pr){
       if(dis) x.disabled = true; else x.addEventListener("click", function(){ startEdit(name,"remove",kind,id); });
       it.appendChild(x); l.appendChild(it);
     });
-    (denies||[]).forEach(function(id){ var d = el("span","item","deny: "+(kind==="plugin"?short(id):id)); d.title="Explicit deny wins over grants from other profiles. Edit profiles.json to change."; l.appendChild(d); });
+    (denies||[]).forEach(function(id){
+      var d = el("span","item","deny: "+(kind==="plugin"?short(id):id)); d.title="Explicit deny wins over grants from other profiles. "+id;
+      var x = el("button","x","\u00d7"); x.type="button"; x.setAttribute("aria-label","Remove deny of "+id+" from "+name);
+      if(dis) x.disabled = true; else x.addEventListener("click", function(){ startEdit(name,"undeny",kind,id); });
+      d.appendChild(x); l.appendChild(d);
+    });
     var opts = kind==="plugin" ? (state.known_plugins||[]) : (state.available_connectors||[]);
     var sel = el("select","add"); sel.setAttribute("aria-label","Add "+kind+" to "+name);
     var o0 = el("option",null,"+ "+kind); o0.value=""; sel.appendChild(o0);
     opts.filter(function(id){ return items.indexOf(id)<0; }).forEach(function(id){ var o=el("option",null,kind==="plugin"?short(id):id); o.value=id; o.title=id; sel.appendChild(o); });
     if(dis) sel.disabled = true;
     sel.addEventListener("change", function(){ if(sel.value){ var v=sel.value; sel.disabled=true; startEdit(name,"add",kind,v); } });
-    l.appendChild(sel); c.appendChild(l);
+    l.appendChild(sel);
+    var dsel = el("select","add"); dsel.setAttribute("aria-label","Deny "+kind+" in "+name);
+    var d0 = el("option",null,"deny..."); d0.value=""; dsel.appendChild(d0);
+    opts.filter(function(id){ return (denies||[]).indexOf(id)<0; }).forEach(function(id){ var o=el("option",null,kind==="plugin"?short(id):id); o.value=id; o.title=id; dsel.appendChild(o); });
+    if(dis) dsel.disabled = true;
+    dsel.addEventListener("change", function(){ if(dsel.value){ var v=dsel.value; dsel.disabled=true; startEdit(name,"deny",kind,v); } });
+    l.appendChild(dsel); c.appendChild(l);
   }
   listing("Plugins","plugin",pr.plugins,pr.deny_plugins);
   listing("Connectors","connector",pr.connectors,pr.deny_connectors);
@@ -557,23 +611,111 @@ function card(name, pr){
     });
   }
   c.appendChild(pj);
+  c.appendChild(btn(pr.default ? "Remove from defaults" : "Make default","btn sm", function(){ startEdit(name, pr.default?"remove":"add", "default", ""); }, dis));
   if(pendingEdit && pendingEdit.name===name) c.appendChild(confirmBlock(pendingEdit));
   else if(busy[key]){ var w = el("div","working"); w.appendChild(el("span","spin")); w.appendChild(document.createTextNode(busy[key]+"...")); c.appendChild(w); }
   return c;
 }
 
-function setTab(t){ tab = t; try{ history.replaceState(null,"", t==="profiles" ? "#profiles" : location.pathname+location.search); }catch(e){} render(); }
+function fmtDate(t){ return t ? t.replace("T"," ").slice(0,10) : "-"; }
+function capDry(action, id, profiles){
+  var key = "cap:"+id;
+  if(RO || busy[key]) return;
+  busy[key] = "Checking"; render();
+  api("/api/capability", {action:action,id:id,profiles:profiles,dry_run:true}).then(function(j){
+    capEdit = {action:action,id:id,profiles:profiles,affected:j.affected||[],plist:j.profiles||profiles||[],ok:j.ok};
+    if(!j.ok) setMsg((j.messages||[]).join("; "), true);
+  }).catch(function(e){ setMsg("Failed: "+e.message, true); })
+    .then(function(){ delete busy[key]; render(); });
+}
+function capPicker(c){
+  var box = el("div","picker");
+  box.appendChild(el("div","sub","Add "+c.id+" to these profiles (baseline = every project):"));
+  var groups = {};
+  Object.keys(state.profiles||{}).forEach(function(n){ var g = state.profiles[n].group||"other"; (groups[g]=groups[g]||[]).push(n); });
+  Object.keys(groups).sort().forEach(function(g){
+    box.appendChild(el("h4",null,g));
+    groups[g].sort().forEach(function(n){
+      var lab = el("label"), cb = el("input"); cb.type="checkbox"; cb.checked = !!capSel.sel[n]; cb.setAttribute("aria-label",n);
+      cb.addEventListener("change", function(){ if(cb.checked) capSel.sel[n]=true; else delete capSel.sel[n]; });
+      lab.appendChild(cb); lab.appendChild(document.createTextNode(" "+n)); box.appendChild(lab);
+    });
+  });
+  var row = el("div","newrow");
+  row.appendChild(btn("Preview","btn sm primary", function(){
+    var ps = Object.keys(capSel.sel); if(!ps.length){ setMsg("Pick at least one profile.", true); return; }
+    capDry("adopt", c.id, ps);
+  }));
+  row.appendChild(btn("Cancel","btn sm", function(){ capSel=null; render(); }));
+  box.appendChild(row);
+  return box;
+}
+function renderCaps(){
+  var caps = state.capabilities||[];
+  var ib = document.getElementById("inbox"); ib.textContent="";
+  ib.appendChild(el("h2",null,"Inbox"));
+  var news = caps.filter(function(c){return c.status==="new";}), gone = caps.filter(function(c){return c.status==="gone";});
+  if(!news.length && !gone.length) ib.appendChild(el("div","sub","Nothing waiting. New plugins and connectors show up here after a scan."));
+  news.concat(gone).forEach(function(c){
+    var key = "cap:"+c.id, dis = RO || !!busy[key] || !!capEdit;
+    var it = el("div","inbox-item"), g = el("div","grow");
+    g.appendChild(el("strong",null,c.id));
+    g.appendChild(el("span","tag",c.status==="new" ? "new "+c.kind : "gone "+c.kind));
+    var sub = c.status==="new"
+      ? "On orgs: "+(c.seen_on_orgs.join(", ")||"-")+(c.description ? ". "+c.description : "")
+      : "Last seen "+fmtDate(c.last_seen)+". Still referenced by: "+(c.referenced_by.join(", ")||"no profile");
+    g.appendChild(el("div","sub",sub)); it.appendChild(g);
+    if(c.status==="new"){
+      it.appendChild(btn("Add to profiles...","btn sm", function(){ capSel = {id:c.id, sel:{}}; render(); }, dis));
+      it.appendChild(btn("Ignore","btn sm", function(){ act(key,[["/api/capability",{action:"ignore",id:c.id}]],"Ignoring "+c.id); }, dis));
+    } else {
+      it.appendChild(btn("Retire everywhere","btn sm", function(){ capDry("retire", c.id); }, dis));
+    }
+    if(busy[key]){ var w=el("span","working"); w.appendChild(el("span","spin")); w.appendChild(document.createTextNode(busy[key]+"...")); it.appendChild(w); }
+    ib.appendChild(it);
+    if(capSel && capSel.id===c.id && !capEdit) ib.appendChild(capPicker(c));
+  });
+  var cc = document.getElementById("capconfirm"); cc.textContent="";
+  if(capEdit){
+    var ce = capEdit, key2 = "cap:"+ce.id;
+    var title = ce.action==="adopt" ? "Add "+ce.id+" to "+ce.profiles.join(", ")+"."
+                                    : "Retire "+ce.id+": removed from "+(ce.plist.join(", ")||"no profile")+" and every inline exception.";
+    var cb = confirmUI(title, ce.affected, key2, ce.ok, function(){
+      var e = capEdit; capEdit = null; capSel = null;
+      act(key2, [["/api/capability",{action:e.action,id:e.id,profiles:e.profiles}]], (e.action==="adopt"?"Adding ":"Retiring ")+e.id);
+    }, function(){ capEdit=null; render(); });
+    cb.style.marginBottom = "12px"; cc.appendChild(cb);
+  }
+  var tb = document.getElementById("captbody"); tb.textContent="";
+  caps.forEach(function(c){
+    var tr = el("tr");
+    tr.appendChild(el("td","path",c.id));
+    tr.appendChild(el("td",null,c.kind));
+    var ts = el("td"); ts.appendChild(el("span","chip "+(c.status==="active"?"ok":c.status==="new"?"new":c.status==="gone"?"error":"gone"),c.status)); tr.appendChild(ts);
+    tr.appendChild(el("td",null,fmtDate(c.first_seen)));
+    tr.appendChild(el("td",null,fmtDate(c.last_seen)));
+    tr.appendChild(el("td",null,c.seen_on_orgs.join(", ")||"-"));
+    tr.appendChild(el("td",null,c.granted_by.join(", ")||"-"));
+    tr.appendChild(el("td",null,String(c.projects)));
+    var ta = el("td");
+    if(c.status==="active") ta.appendChild(btn("Retire","btn sm", function(){ capDry("retire", c.id); }, RO || !!busy["cap:"+c.id] || !!capEdit));
+    tr.appendChild(ta); tb.appendChild(tr);
+  });
+}
+
+function setTab(t){ tab = t; try{ history.replaceState(null,"", t==="projects" ? location.pathname+location.search : "#"+t); }catch(e){} render(); }
 document.getElementById("tab-projects").addEventListener("click", function(){ setTab("projects"); });
 document.getElementById("tab-profiles").addEventListener("click", function(){ setTab("profiles"); });
+document.getElementById("tab-capabilities").addEventListener("click", function(){ setTab("capabilities"); });
 document.getElementById("newprof-btn").addEventListener("click", function(){ showNewForm = !showNewForm; render(); });
-window.addEventListener("hashchange", function(){ tab = location.hash==="#profiles" ? "profiles" : "projects"; render(); });
+window.addEventListener("hashchange", function(){ tab = tabFromHash(); render(); });
 document.getElementById("q").addEventListener("input", render);
 document.getElementById("sf").addEventListener("change", render);
 document.getElementById("refresh").addEventListener("click", function(){ load(true); });
 if(RO){ document.getElementById("refresh").classList.add("hide"); render(); }
 else {
   load(false);
-  setInterval(function(){ if(document.visibilityState==="visible" && !anyBusy() && !menu && !pendingEdit && !showNewForm) load(false); }, 30000);
+  setInterval(function(){ if(document.visibilityState==="visible" && !anyBusy() && !menu && !pendingEdit && !showNewForm && !capSel && !capEdit) load(false); }, 30000);
 }
 </script>
 </body>

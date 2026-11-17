@@ -18,6 +18,8 @@ Run devconsole according to the arguments.
   - `attach <path> <profile>` and `detach <path> <profile>` (`--no-apply` to only edit)
   - `profile <name> add|remove plugin|connector <id>` (run with `--dry-run` first to list affected projects)
   - `profile-new <name> [--description D] [--group G] [--from-project PATH]` and `profile-delete <name>`
+  - `profile <name> deny|undeny plugin|connector <id>` and `profile-default add|remove <name>` (both support `--dry-run`)
+  - `inbox` (new and gone plugins/connectors), `capability adopt <id> --profiles a,b [--dry-run]`, `capability ignore <id>`, `capability retire <id> [--dry-run]`, `capability list [--status S]`
   - `inline <path> plugin|connector <id> on|off|clear` (inline exceptions are flagged; prefer a profile)
 
 Never edit the user's Claude config files by hand; the script takes backups and writes them atomically.

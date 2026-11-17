@@ -37,6 +37,16 @@ devconsole follows the AWS IAM pattern.
 - Folders without an entry are `new`. Statuses: `ok`, `drift` (actual differs from desired), `missing` (a wanted plugin is absent from `claude plugin list` for that folder; the hint says how to fix it), `error` (plugin list failed or an unknown profile is attached), `new`, `gone`.
 - v1 files (one `profile` per project, top-level extras, `extends`) still load; devconsole always writes the v2 shape.
 
+## Lifecycle
+
+Plugins and connectors appear and disappear over time. `scan` keeps `data_dir/capabilities.json` up to date: every plugin in any project's `claude plugin list`, every synced plugin in any org manifest on the machine, and every claude.ai connector.
+
+- The first time the file is created, everything currently seen (and everything a profile names) is `active`, so day one has no inbox.
+- After that, an id seen for the first time is `new`. It waits in the inbox (`devconsole inbox`, or the Capabilities tab) until you `adopt` it into profiles or `ignore` it.
+- An `active` item that was seen before but is no longer seen anywhere becomes `gone` (the file keeps `last_seen`; nothing is deleted). It returns to `active` if it reappears. Items no one has installed yet, such as official plugins a profile names, are not flagged. A scan that could not read every plugin list or the connector list never marks anything gone.
+- `retire` removes an id from every profile and inline exception, applies the change, and marks it `retired`. A retired id that shows up again stays retired and is listed under `scan -v`.
+- The SessionStart hook adds one line when the inbox has new items, at most once a day (state in `.capabilities-hint.json` next to the config file).
+
 ## Launcher
 
 `bin/devconsole` opens the page, starting the server in the background if it is not running. `bin/devconsole stop` stops it. Any other argument passes through to `scripts/devconsole.py`. Alias it in your shell: `alias devconsole="/path/to/devconsole/bin/devconsole"`.
@@ -53,10 +63,16 @@ All run as `python3 scripts/devconsole.py <command>`; inside Claude Code use `/d
 | `apply --all [--dry-run]` | Reconcile every project that has an entry. Prints a per-project summary and totals, backs up `~/.claude.json` once, continues past failures |
 | `attach <path> <profile> [--no-apply]` | Attach a profile (creates the entry for a new project), then apply |
 | `detach <path> <profile> [--no-apply]` | Detach a profile, then apply |
-| `profile <name> add\|remove plugin\|connector <id> [--dry-run] [--no-apply]` | Edit a profile, then apply every project it reaches. `--dry-run` lists affected projects and changes and writes nothing |
+| `profile <name> add\|remove\|deny\|undeny plugin\|connector <id> [--dry-run] [--no-apply]` | Edit a profile's grants or deny lists, then apply every project it reaches. `--dry-run` lists affected projects and changes and writes nothing |
+| `profile-default add\|remove <name> [--dry-run] [--no-apply]` | Edit `default_profiles` (every project is affected) |
 | `profile-new <name> [--description D] [--group G] [--from-project P]` | Create a profile. `--from-project` seeds it from that project's inline `on` items and moves them into an attachment |
 | `profile-delete <name>` | Delete a profile; refused while it is attached anywhere |
 | `inline <path> plugin\|connector <id> on\|off\|clear` | Set or clear an inline exception, then apply that item |
+| `inbox` | List new and gone capabilities (see Lifecycle) |
+| `capability adopt <id> --profiles a,b [--dry-run]` | Add a capability to those profiles (`baseline` for global), apply, mark it active |
+| `capability ignore <id>` | Mark it ignored; it leaves the inbox |
+| `capability retire <id> [--dry-run]` | Remove it from every profile and inline exception, apply, mark it retired |
+| `capability list [--status S]` | List the registry |
 | `snapshot` | Write `CONSOLE.md` and a read-only `CONSOLE.html` |
 | `serve [--port 8765] [--no-open]` | Local page: Projects and Profiles tabs. `#profiles` in the URL opens the Profiles tab |
 

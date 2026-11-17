@@ -94,6 +94,10 @@ class Config:
         return os.path.join(self.data_dir, ".devconsole-cache.json")
 
     @property
+    def caps_path(self):
+        return os.path.join(self.data_dir, "capabilities.json")
+
+    @property
     def log_path(self):
         return os.path.join(self.data_dir, "devconsole.log")
 
@@ -145,14 +149,15 @@ def _norm_profile(raw, name):
         conns += [norm_conn(c) for c in _strs(p.get("connectors")) + _strs(p.get("connectors_on"))]
         dp += _strs(p.get("deny_plugins"))
         dc_ += [norm_conn(c) for c in _strs(p.get("deny_connectors"))]
-    return {"group": own.get("group") if isinstance(own.get("group"), str) else "",
+    return {"_extra": {k: v for k, v in own.items() if k.startswith("_")},
+            "group": own.get("group") if isinstance(own.get("group"), str) else "",
             "description": own.get("description") if isinstance(own.get("description"), str) else "",
             "plugins": _uniq(plugins), "connectors": _uniq(conns),
             "deny_plugins": _uniq(dp), "deny_connectors": _uniq(dc_)}
 
 
 def _ser_profile(p):
-    out = {}
+    out = dict(p.get("_extra") or {})
     if p.get("group"):
         out["group"] = p["group"]
     out["description"] = p.get("description", "")
@@ -396,7 +401,7 @@ def orgs_info():
     cj = load_claude_json()
     acct = cj.get("oauthAccount") or {}
     cur = acct.get("organizationUuid") or ""
-    orgs = {}
+    orgs, descs = {}, {}
     for mf in glob.glob(os.path.join(claude_home(), "plugins", "synced", "*_*", "manifest.json")):
         d = os.path.dirname(mf)
         org = os.path.basename(d).split("_", 1)[0]
@@ -408,7 +413,10 @@ def orgs_info():
                 continue
             pj = read_json(os.path.join(d, n, ".claude-plugin", "plugin.json"), {}) or {}
             names.add(pj.get("name") or n)
+            if pj.get("description"):
+                descs.setdefault(pj.get("name") or n, pj["description"])
     return {
+        "descriptions": descs,
         "name": acct.get("organizationName") or "",
         "id8": cur[:8],
         "orgs": [{"id8": o[:8], "current": o == cur, "plugins": sorted(n)} for o, n in sorted(orgs.items())],
@@ -627,6 +635,10 @@ def scan(cfg, fresh=False):
     for k in (cj.get("projects") or {}):
         if (k == cfg.root or k.startswith(cfg.root + os.sep)) and not os.path.isdir(k):
             stale.append(k)
+    complete = bool(connectors) and all(
+        (cache["projects"].get(abs_of(cfg, r)) or {}).get("plugins") is not None for r in live)
+    lists = [(cache["projects"].get(abs_of(cfg, r)) or {}).get("plugins") for r in live]
+    caps, seen_ids = update_capabilities(cfg, lists, oi, connectors, profiles, complete)
     miss = {}
     for row in rows:
         for i in row["missing"]:
@@ -637,7 +649,7 @@ def scan(cfg, fresh=False):
         counts[row["status"]] = counts.get(row["status"], 0) + 1
     prof_out = {}
     for n, p in profiles.items():
-        prof_out[n] = dict(p, default=n in defaults,
+        prof_out[n] = dict({k: v for k, v in p.items() if k != "_extra"}, default=n in defaults,
                            projects=[r for r, e in projects.items() if n in e.get("profiles", [])])
     seen_plugins = set()
     for r in rows:
@@ -651,6 +663,8 @@ def scan(cfg, fresh=False):
         "known_plugins": known_plugins, "available_connectors": connectors,
         "counts": counts, "projects": rows, "stale": stale, "missing": miss_list,
         "has_costs": costs is not None,
+        "capabilities": caps_view(caps, rows, profiles, oi, seen_ids),
+        "inbox": {st: sorted(i for i, e in caps["capabilities"].items() if e["status"] == st) for st in ("new", "gone")},
     }
 
 
@@ -959,34 +973,36 @@ def profile_edit(cfg, name, op, kind, ident, dry=False, apply=True, out=print):
     profiles, meta = load_profiles(cfg)
     if not _need_profile(profiles, name, out):
         return 2, []
-    if op not in ("add", "remove") or kind not in ("plugin", "connector") or not ident:
-        out("usage: profile <name> add|remove plugin|connector <id>")
+    if op not in ("add", "remove", "deny", "undeny") or kind not in ("plugin", "connector") or not ident:
+        out("usage: profile <name> add|remove|deny|undeny plugin|connector <id>")
         return 2, []
     ident = norm_conn(ident) if kind == "connector" else ident
-    key = "plugins" if kind == "plugin" else "connectors"
-    new_profiles = {n: dict(p, plugins=list(p["plugins"]), connectors=list(p["connectors"])) for n, p in profiles.items()}
+    key = ("deny_" if op in ("deny", "undeny") else "") + ("plugins" if kind == "plugin" else "connectors")
+    new_profiles = {n: dict(p, **{k: list(p[k]) for k in ("plugins", "connectors", "deny_plugins", "deny_connectors")})
+                    for n, p in profiles.items()}
     cur = new_profiles[name][key]
-    if op == "add":
+    verb = {"add": "added", "remove": "removed", "deny": "denied", "undeny": "un-denied"}[op]
+    if op in ("add", "deny"):
         if ident in cur:
-            out("%s already has %s %s" % (name, kind, ident))
+            out("%s already %s %s %s" % (name, "denies" if op == "deny" else "has", kind, ident))
             return 0, []
         cur.append(ident)
     else:
         if ident not in cur:
-            out("%s does not have %s %s" % (name, kind, ident))
+            out("%s does not %s %s %s" % (name, "deny" if op == "undeny" else "have", kind, ident))
             return 2, []
         new_profiles[name][key] = [x for x in cur if x != ident]
     projects = load_projects(cfg)["projects"]
     rels = _affected(projects, meta["default_profiles"], name)
     if dry:
         affected = _project_changes(cfg, rels, projects, new_profiles, meta["default_profiles"])
-        out("would %s %s %s %s %s; affects %d project(s)" % (op, kind, ident, "to" if op == "add" else "from", name, len(rels)))
+        out("would %s %s %s %s %s; affects %d project(s)" % (op, kind, ident, "to" if op in ("add", "deny") else "from", name, len(rels)))
         for a in affected:
             out("  %s: %s" % (a["path"], ", ".join(a["changes"]) or a.get("note") or "no change"))
         return 0, affected
     save_profiles(cfg, new_profiles, meta)
-    log_change(cfg, "(profile %s)" % name, "%s:%s" % (kind, ident), "-" if op == "add" else "granted", "granted" if op == "add" else "removed")
-    out("%s: %s %s %s" % (name, "added" if op == "add" else "removed", kind, ident))
+    log_change(cfg, "(profile %s)" % name, "%s:%s" % (kind, ident), "-", verb)
+    out("%s: %s %s %s" % (name, verb, kind, ident))
     rc = 0
     if apply:
         ctx = {}
@@ -1091,6 +1107,310 @@ def do_inline(cfg, rel, kind, ident, value, out=print, apply=True):
     return do_apply(cfg, rel, only=(kind, ident), out=out) if apply else 0
 
 
+# ------------------------------------------------------------- default profiles
+def profile_default(cfg, op, name, dry=False, apply=True, out=print):
+    """-> (rc, affected). Edit default_profiles; every project is affected."""
+    profiles, meta = load_profiles(cfg)
+    if not _need_profile(profiles, name, out):
+        return 2, []
+    cur = list(meta["default_profiles"])
+    if op == "add":
+        if name in cur:
+            out("%s is already a default profile" % name)
+            return 0, []
+        cur.append(name)
+    else:
+        if name not in cur:
+            out("%s is not a default profile" % name)
+            return 2, []
+        cur.remove(name)
+    projects = load_projects(cfg)["projects"]
+    rels = list(projects)
+    if dry:
+        affected = _project_changes(cfg, rels, projects, profiles, cur)
+        out("would %s default profile %s; affects %d project(s)" % (op, name, len(rels)))
+        for a in affected:
+            out("  %s: %s" % (a["path"], ", ".join(a["changes"]) or a.get("note") or "no change"))
+        return 0, affected
+    meta["default_profiles"] = cur
+    save_profiles(cfg, profiles, meta)
+    log_change(cfg, "(default_profiles)", name, "-", "added" if op == "add" else "removed")
+    out("%s: %s default profile" % (name, "added" if op == "add" else "removed"))
+    rc = 0
+    if apply:
+        ctx = {}
+        for r in rels:
+            if os.path.isdir(abs_of(cfg, r)):
+                rc = do_apply(cfg, r, out=out, ctx=ctx) or rc
+    return rc, []
+
+
+# ------------------------------------------------------- capability lifecycle
+CAP_STATUSES = ("new", "active", "ignored", "retired", "gone")
+
+
+def _now():
+    return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def load_caps(cfg):
+    d = read_json(cfg.caps_path, None)
+    if not isinstance(d, dict) or not isinstance(d.get("capabilities"), dict):
+        return None
+    return d
+
+
+def _new_cap(kind, status, now, orgs, seen=True):
+    return {"kind": kind, "status": status, "first_seen": now, "last_seen": now if seen else "",
+            "seen_on_orgs": sorted(orgs), "note": ""}
+
+
+def collect_seen(lists, oi, connectors):
+    seen = {}
+
+    def add(i, kind, org=None):
+        e = seen.setdefault(i, {"kind": kind, "orgs": set()})
+        if org:
+            e["orgs"].add(org)
+    cur = oi.get("id8")
+    for pl in lists:
+        for p in pl or []:
+            if not _is_self(p["id"]):
+                add(p["id"], "plugin", cur if p["id"].endswith("@synced") and cur else None)
+    for o in oi.get("orgs", []):
+        for n in o["plugins"]:
+            add(n + "@synced", "plugin", o["id8"])
+    for c in connectors or []:
+        add(c, "connector", cur or None)
+    return seen
+
+
+def update_capabilities(cfg, lists, oi, connectors, profiles, complete=True):
+    """Maintain capabilities.json. -> (data, ids seen in this scan)."""
+    existing = load_caps(cfg)
+    now = _now()
+    seen = collect_seen(lists, oi, connectors)
+    if existing is None:  # first run: everything known is active, no inbox flood
+        caps = {i: _new_cap(s["kind"], "active", now, s["orgs"]) for i, s in seen.items()}
+        for p in profiles.values():
+            for kind, ids in (("plugin", p["plugins"] + p["deny_plugins"]),
+                              ("connector", p["connectors"] + p["deny_connectors"])):
+                for i in ids:
+                    if i not in caps:
+                        caps[i] = _new_cap(kind, "active", now, [], seen=False)
+        data = {"capabilities": caps}
+        write_json_2(cfg.caps_path, data)
+        return data, set(seen)
+    caps, changed = existing["capabilities"], False
+    for i, s in seen.items():
+        e = caps.get(i)
+        if e is None:
+            caps[i] = _new_cap(s["kind"], "new", now, s["orgs"])
+            changed = True
+            continue
+        if e.get("status") == "gone":
+            e["status"] = "active"
+            changed = True
+        if s["orgs"] and e.get("seen_on_orgs") != sorted(s["orgs"]):
+            e["seen_on_orgs"] = sorted(s["orgs"])
+            changed = True
+        if (e.get("last_seen") or "")[:13] != now[:13]:
+            e["last_seen"] = now
+            changed = True
+    if complete:
+        for i, e in caps.items():
+            # never-seen items (a profile names them, nothing installed them yet) are not gone
+            if i not in seen and e.get("status") == "active" and e.get("last_seen"):
+                e["status"] = "gone"
+                changed = True
+    if changed:
+        write_json_2(cfg.caps_path, existing)
+    return existing, set(seen)
+
+
+def set_cap_status(cfg, cid, kind, status, note=None):
+    d = load_caps(cfg) or {"capabilities": {}}
+    now = _now()
+    e = d["capabilities"].setdefault(cid, _new_cap(kind, status, now, [], seen=False))
+    e["status"] = status
+    if note is not None:
+        e["note"] = note
+    write_json_2(cfg.caps_path, d)
+
+
+def cap_kind(cfg, cid):
+    d = load_caps(cfg) or {"capabilities": {}}
+    e = d["capabilities"].get(cid)
+    if e:
+        return e["kind"]
+    return "plugin" if "@" in cid else "connector"
+
+
+def referencing_profiles(profiles, cid):
+    return [n for n, p in profiles.items()
+            if cid in p["plugins"] + p["deny_plugins"] + p["connectors"] + p["deny_connectors"]]
+
+
+def caps_view(caps, rows, profiles, oi, seen_ids):
+    descs = oi.get("descriptions", {})
+    out = []
+    for i, e in sorted(caps["capabilities"].items()):
+        plug = e["kind"] == "plugin"
+        n = sum(1 for r in rows if i in (r["desired"]["plugins"] if plug else r["desired"]["connectors_on"])
+                and r["status"] != "new")
+        out.append({"id": i, "kind": e["kind"], "status": e["status"], "first_seen": e.get("first_seen", ""),
+                    "last_seen": e.get("last_seen", ""), "seen_on_orgs": e.get("seen_on_orgs", []),
+                    "note": e.get("note", ""), "seen_now": i in seen_ids,
+                    "granted_by": [nm for nm, p in profiles.items() if i in (p["plugins"] if plug else p["connectors"])],
+                    "referenced_by": referencing_profiles(profiles, i), "projects": n,
+                    "description": descs.get(i.split("@")[0], "") if plug and i.endswith("@synced") else ""})
+    return out
+
+
+def show_inbox(cfg, out=print):
+    d = load_caps(cfg)
+    if d is None:
+        out("no capabilities.json yet; run `scan` first")
+        return 0
+    profiles, _ = load_profiles(cfg)
+    oi = orgs_info()
+    caps = d["capabilities"]
+    new = sorted(i for i, e in caps.items() if e["status"] == "new")
+    gone = sorted(i for i, e in caps.items() if e["status"] == "gone")
+    if not new and not gone:
+        out("inbox is empty")
+        return 0
+    if new:
+        out("New (%d):" % len(new))
+        for i in new:
+            e = caps[i]
+            desc = oi.get("descriptions", {}).get(i.split("@")[0], "") if i.endswith("@synced") else ""
+            out("  %-9s %s  orgs: %s%s" % (e["kind"], i, ", ".join(e.get("seen_on_orgs") or []) or "-",
+                                          ("  | " + desc) if desc else ""))
+    if gone:
+        out("Gone (%d):" % len(gone))
+        for i in gone:
+            out("  %-9s %s  last seen %s  profiles: %s" % (caps[i]["kind"], i, (caps[i].get("last_seen") or "-")[:10],
+                                                          ", ".join(referencing_profiles(profiles, i)) or "none"))
+    return 0
+
+
+def list_caps(cfg, status=None, out=print):
+    d = load_caps(cfg)
+    if d is None:
+        out("no capabilities.json yet; run `scan` first")
+        return 0
+    for i, e in sorted(d["capabilities"].items()):
+        if status and e["status"] != status:
+            continue
+        out("%-9s %-8s %-8s last seen %-10s %s" % (e["kind"], e["status"], ",".join(e.get("seen_on_orgs") or []) or "-",
+                                                  (e.get("last_seen") or "-")[:10], i))
+    return 0
+
+
+def capability_ignore(cfg, cid, out=print):
+    set_cap_status(cfg, cid, cap_kind(cfg, cid), "ignored")
+    log_change(cfg, "(capability)", cid, "-", "ignored")
+    out("ignored %s" % cid)
+    return 0
+
+
+def capability_adopt(cfg, cid, profile_names, dry=False, apply=True, out=print):
+    """Add the capability to each profile (apply to their projects), then mark active.
+    -> (rc, affected, profile_names)."""
+    profiles, _ = load_profiles(cfg)
+    bad = [n for n in profile_names if n not in profiles]
+    if bad:
+        out("unknown profile(s): %s" % ", ".join(bad))
+        return 2, [], profile_names
+    kind = cap_kind(cfg, cid)
+    rc, affected, seen = 0, [], set()
+    for n in profile_names:
+        r, aff = profile_edit(cfg, n, "add", kind, cid, dry=dry, apply=apply, out=out)
+        rc = rc or r
+        for a in aff:
+            if a["path"] not in seen:
+                seen.add(a["path"])
+                affected.append(a)
+    if not dry and rc == 0:
+        set_cap_status(cfg, cid, kind, "active")
+        log_change(cfg, "(capability)", cid, "-", "adopted into " + ",".join(profile_names))
+    return rc, affected, profile_names
+
+
+def capability_retire(cfg, cid, dry=False, apply=True, out=print):
+    """Remove from every profile and inline exception, apply, mark retired.
+    -> (rc, affected, profiles that referenced it)."""
+    import copy
+    profiles, meta = load_profiles(cfg)
+    d = load_projects(cfg)
+    kind = cap_kind(cfg, cid)
+    cid = norm_conn(cid) if kind == "connector" else cid
+    new_profiles = copy.deepcopy(profiles)
+    hit = []
+    for n, p in new_profiles.items():
+        touched = False
+        for k in ("plugins", "connectors", "deny_plugins", "deny_connectors"):
+            if cid in p[k]:
+                p[k] = [x for x in p[k] if x != cid]
+                touched = True
+        if touched:
+            hit.append(n)
+    projects = copy.deepcopy(d["projects"])
+    inline_hit = []
+    for r, e in projects.items():
+        for k in INLINE_KEYS:
+            if cid in e.get("inline", {}).get(k, []):
+                e["inline"][k] = [x for x in e["inline"][k] if x != cid]
+                if not e["inline"][k]:
+                    del e["inline"][k]
+                if r not in inline_hit:
+                    inline_hit.append(r)
+    rels = list(d["projects"]) if any(n in meta["default_profiles"] for n in hit) else \
+        [r for r, e in d["projects"].items() if r in inline_hit or any(n in hit for n in e["profiles"])]
+    if dry:
+        affected = _project_changes(cfg, rels, projects, new_profiles, meta["default_profiles"])
+        out("would retire %s: profiles %s; inline in %s; affects %d project(s)" % (
+            cid, ", ".join(hit) or "none", ", ".join(inline_hit) or "none", len(rels)))
+        for a in affected:
+            out("  %s: %s" % (a["path"], ", ".join(a["changes"]) or a.get("note") or "no change"))
+        return 0, affected, hit
+    if hit:
+        save_profiles(cfg, new_profiles, meta)
+    if inline_hit:
+        d["projects"] = projects
+        save_projects(cfg, d)
+    log_change(cfg, "(capability)", cid, "-", "retired (profiles: %s)" % ",".join(hit))
+    out("retired %s (removed from profiles: %s; inline in: %s)" % (cid, ", ".join(hit) or "none", ", ".join(inline_hit) or "none"))
+    rc = 0
+    if apply:
+        ctx = {}
+        for r in rels:
+            if os.path.isdir(abs_of(cfg, r)):
+                rc = do_apply(cfg, r, out=out, ctx=ctx) or rc
+    set_cap_status(cfg, cid, kind, "retired")
+    return rc, [], hit
+
+
+def _caps_hint(cfg, hook):
+    """File-only inbox reminder for the SessionStart hook, at most once a day."""
+    if not hook:
+        return ""
+    d = load_caps(cfg)
+    n = sum(1 for e in (d or {"capabilities": {}})["capabilities"].values() if e.get("status") == "new")
+    if not n:
+        return ""
+    sp = os.path.join(os.path.dirname(config_path()), ".capabilities-hint.json")
+    today = datetime.date.today().isoformat()
+    if (read_json(sp, {}) or {}).get("date") == today:
+        return ""
+    try:
+        atomic_write(sp, json.dumps({"date": today}) + "\n")
+    except Exception:
+        return ""
+    return " devconsole: %d new capabilit%s waiting in the inbox (run `devconsole` to review)." % (n, "y" if n == 1 else "ies")
+
+
 # --------------------------------------------------------------------- check
 def check_path(path, hook=False):
     cfg = load_config()
@@ -1114,7 +1434,7 @@ def check_path(path, hook=False):
     if key is None:
         msg = ("devconsole: this folder (%s) has no plugin profile, so every claude.ai connector is on "
                "and no project plugins are set. Offer the user /project-setup." % rel)
-        _emit(msg, hook, plain="devconsole: %s is new (no profile)" % rel)
+        _emit(msg + _caps_hint(cfg, hook), hook, plain="devconsole: %s is new (no profile)" % rel)
         return
     entry = projects[key]
     conn = (load_cache(cfg).get("connectors") or {}).get("names") or None  # no cache: skip connector drift
@@ -1142,9 +1462,13 @@ def check_path(path, hook=False):
     label = "profiles %s" % (", ".join(des["own"]) or "none")
     if bits:
         _emit("devconsole: %s (%s) differs from its profiles: %s. Run /devconsole to review."
-              % (key, label, ", ".join(bits)), hook)
+              % (key, label, ", ".join(bits)) + _caps_hint(cfg, hook), hook)
     elif not hook:
         print("devconsole: %s (%s): ok" % (key, label))
+    else:
+        h = _caps_hint(cfg, hook)
+        if h:
+            _emit(h.strip(), hook)
 
 
 def _emit(msg, hook, plain=None):
@@ -1240,8 +1564,28 @@ def handle_post(cfg, path, body, msgs):
         if rel is None:
             return _bad()
         return 200, {"rc": do_apply(cfg, rel, out=msgs.append)}
+    if path == "/api/profile-default":
+        if not S(body.get("name")) or body.get("op") not in ("add", "remove"):
+            return _bad()
+        dry = bool(body.get("dry_run"))
+        rc, affected = profile_default(cfg, body["op"], body["name"], dry=dry, out=msgs.append)
+        return 200, dict({"rc": rc}, **({"affected": affected} if dry else {}))
+    if path == "/api/capability":
+        act, cid = body.get("action"), body.get("id")
+        profs = body.get("profiles")
+        if act not in ("adopt", "ignore", "retire") or not S(cid) or \
+                (act == "adopt" and not (isinstance(profs, list) and profs and all(S(x) for x in profs))):
+            return _bad()
+        dry = bool(body.get("dry_run"))
+        if act == "ignore":
+            return 200, {"rc": capability_ignore(cfg, cid, out=msgs.append)}
+        if act == "adopt":
+            rc, affected, plist = capability_adopt(cfg, cid, profs, dry=dry, out=msgs.append)
+        else:
+            rc, affected, plist = capability_retire(cfg, cid, dry=dry, out=msgs.append)
+        return 200, dict({"rc": rc}, **({"affected": affected, "profiles": plist} if dry else {}))
     if path == "/api/profile":
-        if not S(body.get("name")) or body.get("op") not in ("add", "remove") \
+        if not S(body.get("name")) or body.get("op") not in ("add", "remove", "deny", "undeny") \
                 or body.get("kind") not in ("plugin", "connector") or not S(body.get("id")):
             return _bad()
         dry = bool(body.get("dry_run"))
@@ -1372,11 +1716,30 @@ def build_parser():
         t.add_argument("--no-apply", action="store_true")
     p = sub.add_parser("profile", help="profile <name> add|remove plugin|connector <id>")
     p.add_argument("name")
-    p.add_argument("op", choices=["add", "remove"])
+    p.add_argument("op", choices=["add", "remove", "deny", "undeny"])
     p.add_argument("kind", choices=["plugin", "connector"])
     p.add_argument("ident")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--no-apply", action="store_true")
+    pdf = sub.add_parser("profile-default", help="profile-default add|remove <name>")
+    pdf.add_argument("op", choices=["add", "remove"])
+    pdf.add_argument("name")
+    pdf.add_argument("--dry-run", action="store_true")
+    pdf.add_argument("--no-apply", action="store_true")
+    sub.add_parser("inbox", help="list new and gone capabilities")
+    cp = sub.add_parser("capability", help="adopt|ignore|retire|list")
+    csub = cp.add_subparsers(dest="capcmd", required=True)
+    ca = csub.add_parser("adopt")
+    ca.add_argument("ident")
+    ca.add_argument("--profiles", required=True, help="comma-separated profile names")
+    ca.add_argument("--dry-run", action="store_true")
+    ci = csub.add_parser("ignore")
+    ci.add_argument("ident")
+    cr = csub.add_parser("retire")
+    cr.add_argument("ident")
+    cr.add_argument("--dry-run", action="store_true")
+    cl = csub.add_parser("list")
+    cl.add_argument("--status", choices=["new", "active", "ignored", "retired", "gone"])
     pn = sub.add_parser("profile-new")
     pn.add_argument("name")
     pn.add_argument("--description", default="")
@@ -1426,6 +1789,9 @@ def main(argv=None):
                     print("  %s: missing %s: %s" % (p["path"], i, h))
                 if p.get("error"):
                     print("  %s: error: %s" % (p["path"], p["error"]))
+        for c in st["capabilities"]:
+            if c["status"] == "retired" and c["seen_now"]:
+                print("  retired but seen again: %s %s" % (c["kind"], c["id"]))
         for m in st["missing"]:
             print("missing: %s in %s: %s" % (m["id"], ", ".join(m["projects"]), m["hint"]))
         for k in st["stale"]:
@@ -1441,6 +1807,18 @@ def main(argv=None):
         return do_attach(cfg, args.relpath, args.profile, apply=not args.no_apply, attach=args.cmd == "attach")
     if args.cmd == "profile":
         return profile_edit(cfg, args.name, args.op, args.kind, args.ident, dry=args.dry_run, apply=not args.no_apply)[0]
+    if args.cmd == "profile-default":
+        return profile_default(cfg, args.op, args.name, dry=args.dry_run, apply=not args.no_apply)[0]
+    if args.cmd == "inbox":
+        return show_inbox(cfg)
+    if args.cmd == "capability":
+        if args.capcmd == "adopt":
+            return capability_adopt(cfg, args.ident, [x for x in args.profiles.split(",") if x], dry=args.dry_run)[0]
+        if args.capcmd == "ignore":
+            return capability_ignore(cfg, args.ident)
+        if args.capcmd == "retire":
+            return capability_retire(cfg, args.ident, dry=args.dry_run)[0]
+        return list_caps(cfg, args.status)
     if args.cmd == "profile-new":
         return profile_new(cfg, args.name, args.description, args.group, args.from_project)
     if args.cmd == "profile-delete":
