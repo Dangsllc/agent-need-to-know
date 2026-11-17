@@ -1,9 +1,11 @@
 {
-  "name": "devconsole",
+  "name": "agent-need-to-know",
   "version": "1.0.0",
   "description": "Least-privilege control for the plugins and connectors Claude Code sessions load: composable per-project profiles, deny-by-default connectors, a local console page.",
-  "author": {"name": "<owner>"},
-  "repository": "https://github.com/<owner>/devconsole",
+  "author": {"name": "Dangsllc"},
+  "homepage": "https://github.com/Dangsllc/agent-need-to-know",
+  "repository": "https://github.com/Dangsllc/agent-need-to-know",
+  "icon": "./assets/icon.png",
   "license": "MIT",
-  "keywords": ["privacy", "least-privilege", "plugins", "mcp", "connectors", "hipaa", "profiles", "minimum-necessary", "claude-code"]
+  "keywords": ["privacy", "least-privilege", "need-to-know", "plugins", "mcp", "connectors", "hipaa", "profiles", "minimum-necessary", "claude-code"]
 }

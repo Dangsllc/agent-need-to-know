@@ -1,10 +1,10 @@
 {
-  "name": "devconsole",
-  "description": "devconsole: least-privilege control for the plugins and connectors Claude Code sessions load.",
-  "owner": {"name": "<owner>"},
+  "name": "agent-need-to-know",
+  "description": "Agent Need-to-Know: least-privilege control for the plugins and connectors Claude Code sessions load.",
+  "owner": {"name": "Dangsllc"},
   "plugins": [
     {
-      "name": "devconsole",
+      "name": "agent-need-to-know",
       "source": "./",
       "description": "Least-privilege control for the plugins and connectors Claude Code sessions load: composable per-project profiles, deny-by-default connectors, a local console page."
     }
