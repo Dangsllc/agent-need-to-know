@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>devconsole</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --ink:#1c2128; --muted:#667085; --line:#e3e6eb; --hover:#f0f3f7;
+  --accent:#2f6fed; --accent-ink:#ffffff;
+  --ok:#1a7f4b; --ok-bg:#e3f4ea; --warn:#a15c00; --warn-bg:#fdf0d8;
+  --bad:#b42318; --bad-bg:#fde7e4; --new:#5b43c9; --new-bg:#ece8fb; --gone:#667085; --gone-bg:#eceff3;
+  --sw-on:#2f6fed; --sw-off:#eef0f4; --sw-off-ink:#667085;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#14171c; --panel:#1b1f26; --ink:#e6e9ee; --muted:#97a0ad; --line:#2b313b; --hover:#222833;
+    --accent:#6b9bff; --accent-ink:#0e1420;
+    --ok:#5fd199; --ok-bg:#16322580; --warn:#f2b350; --warn-bg:#3a2d1380;
+    --bad:#ff8a7d; --bad-bg:#3d1b1880; --new:#b3a2ff; --new-bg:#2a2347; --gone:#97a0ad; --gone-bg:#262b34;
+    --sw-on:#4d7fe0; --sw-off:#262c36; --sw-off-ink:#97a0ad;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+header,main{padding:0 16px;max-width:1500px;margin:0 auto}
+header{padding-top:16px}
+h1{font-size:18px;margin:0 0 2px}
+.sub{color:var(--muted);font-size:12.5px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid transparent}
+.chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.drift{color:var(--warn);background:var(--warn-bg)}
+.chip.missing,.chip.error{color:var(--bad);background:var(--bad-bg)} .chip.new{color:var(--new);background:var(--new-bg)}
+.chip.gone{color:var(--gone);background:var(--gone-bg)}
+button,select,input{font:inherit;color:var(--ink)}
+button.btn,select,input[type=search]{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+button.btn{cursor:pointer} button.btn:hover{background:var(--hover)}
+button.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button:disabled{cursor:not-allowed;opacity:.6}
+.spacer{flex:1}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;margin:12px 0;padding:10px 12px}
+.panel h2{font-size:13px;margin:0 0 6px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.panel ul{margin:0;padding-left:18px}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.newrow{display:flex;gap:8px;align-items:center;padding:3px 0;flex-wrap:wrap}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:900px}
+th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);background:var(--panel);position:sticky;top:0;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--hover)}
+td.path{font-weight:600;white-space:nowrap}
+td.path small{display:block;color:var(--muted);font-weight:400;max-width:240px;white-space:normal}
+.sws{display:flex;flex-wrap:wrap;gap:4px;max-width:420px}
+.sw{border:1px solid var(--line);background:var(--sw-off);color:var(--sw-off-ink);border-radius:999px;padding:0 9px;font-size:12px;line-height:20px;cursor:pointer;white-space:nowrap}
+.sw.on{background:var(--sw-on);color:#fff;border-color:var(--sw-on)}
+.sw.suggested{background:transparent;border:1px dashed var(--muted);color:var(--muted)}
+.sw.missing{background:var(--bad-bg);color:var(--bad);border-color:var(--bad);cursor:not-allowed}
+.sw.drift{box-shadow:0 0 0 2px var(--warn)}
+.sw.conn.off{text-decoration:line-through}
+.sw.conn.on{background:var(--ok-bg);color:var(--ok);border-color:transparent}
+.sw.ro{cursor:default}
+.confirm td{background:var(--warn-bg)}
+.hide{display:none}
+.msg{font-size:12.5px;color:var(--muted);min-height:18px}
+.msg.err{color:var(--bad)}
+.add{font-size:12px;padding:0 4px;max-width:70px}
+@media (max-width:600px){ h1{font-size:16px} }
+</style>
+</head>
+<body>
+<header>
+  <h1>devconsole</h1>
+  <div class="sub" id="org">Loading...</div>
+  <div class="bar">
+    <div class="chips" id="chips"></div>
+    <span class="spacer"></span>
+    <input type="search" id="q" placeholder="Filter projects" aria-label="Filter projects">
+    <select id="sf" aria-label="Status filter"><option value="">All statuses</option><option>ok</option><option>drift</option><option>missing</option><option>new</option><option>gone</option><option>error</option></select>
+    <button class="btn" id="refresh" type="button">Refresh</button>
+  </div>
+  <div class="msg" id="msg" role="status"></div>
+</header>
+<main>
+  <div id="banners"></div>
+  <div class="panel hide" id="newp"><h2>New folders</h2><div id="newlist"></div></div>
+  <div class="tablewrap"><table>
+    <thead><tr id="thead"></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table></div>
+  <p class="sub" id="foot"></p>
+</main>
+<script>
+"use strict";
+var BOOT = /*__BOOT__*/null || {token:"",readonly:false,state:null};
+var state = BOOT.state, RO = !!BOOT.readonly, pendingProfile = null;
+
+function el(tag, cls, text){ var e=document.createElement(tag); if(cls) e.className=cls; if(text!==undefined) e.textContent=text; return e; }
+function setMsg(t, err){ var m=document.getElementById("msg"); m.textContent=t||""; m.className="msg"+(err?" err":""); }
+
+async function api(path, body){
+  var opts = body ? {method:"POST",headers:{"Content-Type":"application/json","X-Devconsole-Token":BOOT.token},body:JSON.stringify(body)} : {};
+  var r = await fetch(path, opts);
+  var j = await r.json();
+  if(!r.ok) throw new Error(j.error||("HTTP "+r.status));
+  return j;
+}
+async function load(fresh){
+  if(RO) return;
+  setMsg(fresh ? "Scanning projects (this can take a minute)..." : "");
+  try{ state = await api("/api/state"+(fresh?"?fresh=1":"")); setMsg(""); render(); }
+  catch(e){ setMsg("Could not load state: "+e.message, true); }
+}
+async function act(path, body, label){
+  setMsg(label+"...");
+  try{
+    var j = await api(path, body);
+    state = j.state; render();
+    setMsg((j.messages||[]).join("; ") || "Done.", !j.ok);
+  }catch(e){ setMsg("Failed: "+e.message, true); }
+}
+function copy(text, btn){
+  var done=function(){ var o=btn.textContent; btn.textContent="Copied"; setTimeout(function(){btn.textContent=o;},1500); };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done, function(){ setMsg("Copy failed. Command: "+text, true); }); }
+  else setMsg("Clipboard unavailable. Command: "+text, true);
+}
+
+function short(id){ return id.split("@")[0]; }
+function sw(label, cls, title, onclick){
+  var b = el("button","sw "+cls,label); b.type="button"; b.title=title||"";
+  if(RO || cls.indexOf("missing")>=0) { b.disabled = cls.indexOf("missing")>=0; if(RO) b.classList.add("ro"); if(RO) b.disabled=true; }
+  else b.addEventListener("click", onclick);
+  return b;
+}
+
+function render(){
+  if(!state) return;
+  var o = state.org;
+  document.getElementById("org").textContent = "Logged in to " + (o.name||"unknown org") + (o.id8 ? " ("+o.id8+")" : "") + (RO ? "  |  snapshot " : "  |  updated ") + (state.generated||"").replace("T"," ").slice(0,16);
+  var chips = document.getElementById("chips"); chips.textContent="";
+  ["ok","drift","missing","new","gone","error"].forEach(function(k){
+    var n=(state.counts||{})[k]||0; if(!n && k==="error") return;
+    chips.appendChild(el("span","chip "+k, n+" "+k));
+  });
+  // banners
+  var bn = document.getElementById("banners"); bn.textContent="";
+  if((state.missing||[]).length){
+    var p = el("div","panel"); p.appendChild(el("h2",null,"Missing on this account"));
+    var ul = el("ul");
+    state.missing.forEach(function(m){
+      ul.appendChild(el("li",null, m.id+" (wanted by "+m.projects.join(", ")+")" + (m.other_orgs.length ? ". Available on org "+m.other_orgs.join(", ")+"." : ". Not synced to any org on this machine.")));
+    });
+    p.appendChild(ul); bn.appendChild(p);
+  }
+  if((state.stale||[]).length){
+    var p2 = el("div","panel"); p2.appendChild(el("h2",null,"Stale Claude project entries (folder gone, report only)"));
+    var u2 = el("ul"); state.stale.forEach(function(s){ var li=el("li"); li.appendChild(el("code",null,s)); u2.appendChild(li); });
+    p2.appendChild(u2); bn.appendChild(p2);
+  }
+  // new
+  var newp = document.getElementById("newp"), nl = document.getElementById("newlist"); nl.textContent="";
+  var news = state.projects.filter(function(p){return p.status==="new";});
+  newp.classList.toggle("hide", !news.length);
+  news.forEach(function(p){
+    var r = el("div","newrow"); r.appendChild(el("strong",null,p.path));
+    var cmd = 'cd "'+p.abs+'" && claude "/project-setup"';
+    var b = el("button","btn primary","Set up"); b.type="button"; b.addEventListener("click", function(){copy(cmd,b);});
+    r.appendChild(b); nl.appendChild(r);
+  });
+  // table
+  var cols = ["Project","Profile","Status","Plugins","Connectors"]; if(state.has_costs) cols.push("Plugin tokens");
+  var th = document.getElementById("thead"); th.textContent="";
+  cols.forEach(function(c){ th.appendChild(el("th",null,c)); });
+  var q = document.getElementById("q").value.toLowerCase(), sf = document.getElementById("sf").value;
+  var tb = document.getElementById("tbody"); tb.textContent="";
+  state.projects.forEach(function(p){
+    if(sf && p.status!==sf) return;
+    if(q && (p.path+" "+(p.profile||"")).toLowerCase().indexOf(q)<0) return;
+    tb.appendChild(row(p, cols.length));
+    if(pendingProfile && pendingProfile.path===p.path) tb.appendChild(confirmRow(p, cols.length));
+  });
+  document.getElementById("foot").textContent = state.projects.length+" projects. Dashed = suggested by profile (click to turn on as an extra). Amber ring = actual state differs from desired; use Apply.";
+}
+
+function row(p, ncols){
+  var tr = el("tr");
+  var tp = el("td","path",p.path); if(p.notes) tp.appendChild(el("small",null,p.notes)); tr.appendChild(tp);
+  var tpf = el("td");
+  if(p.status==="gone"){ tpf.textContent = p.profile||"-"; }
+  else {
+    var sel = el("select"); sel.setAttribute("aria-label","Profile for "+p.path);
+    if(!p.profile){ var o0=el("option","", "(none)"); o0.value=""; sel.appendChild(o0); }
+    state.profiles.forEach(function(n){ var o=el("option",null,n); o.value=n; if(n===p.profile) o.selected=true; sel.appendChild(o); });
+    if(RO) sel.disabled=true;
+    sel.addEventListener("change", function(){ if(!sel.value){ sel.value=p.profile||""; return; } pendingProfile={path:p.path,profile:sel.value}; render(); });
+    tpf.appendChild(sel);
+  }
+  tr.appendChild(tpf);
+  var ts = el("td"); ts.appendChild(el("span","chip "+p.status,p.status));
+  if(!RO && (p.status==="drift"||p.status==="missing")){
+    var ab = el("button","btn","Apply"); ab.type="button"; ab.style.marginLeft="6px"; ab.title=(p.drift||[]).join("\n");
+    ab.addEventListener("click", function(){ act("/api/apply",{path:p.path},"Applying "+p.path); });
+    ts.appendChild(ab);
+  }
+  tr.appendChild(ts);
+  // plugins
+  var tpl = el("td"), box = el("div","sws"); var shown={};
+  var offx = (p.extras&&p.extras.plugins_off)||[];
+  p.plugins.forEach(function(x){
+    if(x.state==="off" && offx.indexOf(x.id)<0) return;
+    shown[x.id]=1;
+    var cls, title = x.id;
+    if(x.state==="missing"){ cls="missing"; title+=" is not available on this account"; }
+    else if(x.state==="suggested"){ cls="suggested"; title+=" (suggested by profile)"; }
+    else if(x.desired){ cls="on"; if(x.state==="needs-on"){ cls+=" drift"; title+=" (wanted on, currently off)"; } }
+    else { cls="off"; if(x.state==="needs-off"){ cls+=" drift"; title+=" (wanted off, currently on)"; } }
+    box.appendChild(sw(short(x.id), cls, title, function(){
+      var turnOn = !x.desired;
+      act("/api/set",{path:p.path,kind:"plugin",id:x.id,value:turnOn?"on":"off"},(turnOn?"Enabling ":"Disabling ")+short(x.id));
+    }));
+  });
+  if(!RO && p.status!=="gone" && p.status!=="new"){
+    var add = el("select","add"); add.setAttribute("aria-label","Add plugin to "+p.path);
+    var o1=el("option",null,"+"); o1.value=""; add.appendChild(o1);
+    (state.known_plugins||[]).filter(function(id){return !shown[id];}).forEach(function(id){ var o=el("option",null,id); o.value=id; add.appendChild(o); });
+    add.addEventListener("change", function(){ if(add.value) act("/api/set",{path:p.path,kind:"plugin",id:add.value,value:"on"},"Enabling "+short(add.value)); });
+    box.appendChild(add);
+  }
+  tpl.appendChild(box); tr.appendChild(tpl);
+  // connectors
+  var tc = el("td"), cb = el("div","sws");
+  p.connectors.forEach(function(c){
+    var off = c.desired_off;
+    var cls = "conn "+(off?"off":"on")+((c.desired_off!==c.actual_off)?" drift":"");
+    cb.appendChild(sw(c.name, cls, c.name+(c.available?"":" (not connected on this account)")+(off?": off":": on"), function(){
+      act("/api/set",{path:p.path,kind:"connector",id:c.name,value:off?"on":"off"},(off?"Enabling ":"Disabling ")+c.name);
+    }));
+  });
+  tc.appendChild(cb); tr.appendChild(tc);
+  if(state.has_costs) tr.appendChild(el("td","mono", p.cost==null?"":String(p.cost)));
+  return tr;
+}
+
+function confirmRow(p, n){
+  var tr = el("tr","confirm"), td = el("td"); td.colSpan = n;
+  td.appendChild(document.createTextNode("Apply profile "+pendingProfile.profile+" to "+p.path+"? "));
+  var y = el("button","btn primary","Yes"); y.type="button";
+  y.addEventListener("click", function(){ var pp=pendingProfile; pendingProfile=null; act("/api/apply",{path:pp.path,profile:pp.profile},"Applying profile "+pp.profile); });
+  var c = el("button","btn","Cancel"); c.type="button"; c.style.marginLeft="6px";
+  c.addEventListener("click", function(){ pendingProfile=null; render(); });
+  td.appendChild(y); td.appendChild(c); tr.appendChild(td); return tr;
+}
+
+document.getElementById("q").addEventListener("input", render);
+document.getElementById("sf").addEventListener("change", render);
+document.getElementById("refresh").addEventListener("click", function(){ load(true); });
+if(RO){ document.getElementById("refresh").classList.add("hide"); render(); }
+else {
+  load(false);
+  setInterval(function(){ if(document.visibilityState==="visible" && !pendingProfile) load(false); }, 30000);
+}
+</script>
+</body>
+</html>

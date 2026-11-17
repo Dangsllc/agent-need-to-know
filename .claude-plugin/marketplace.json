@@ -1,0 +1,11 @@
+{
+  "name": "devconsole",
+  "owner": {"name": "devconsole contributors"},
+  "plugins": [
+    {
+      "name": "devconsole",
+      "source": "./",
+      "description": "Profiles and switches for which Claude Code plugins and claude.ai connectors each project folder uses."
+    }
+  ]
+}

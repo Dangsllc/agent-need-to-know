@@ -1,0 +1,52 @@
+{
+  "_about": "Named setups for Claude Code projects. A project picks one profile in projects.json, plus optional extras. 'plugins' are applied; 'suggested' are shown in the console but not applied until turned on. 'connectors_off' names claude.ai connectors to disable (without the 'claude.ai ' prefix). 'extends' inherits plugins and connectors_off; a child's connectors_on re-enables an inherited one.",
+  "plugin_accounts": {
+    "_about": "Optional notes on where each plugin comes from.",
+    "pyright-lsp@claude-plugins-official": "official marketplace",
+    "typescript-lsp@claude-plugins-official": "official marketplace",
+    "security-guidance@claude-plugins-official": "official marketplace",
+    "frontend-design@claude-plugins-official": "official marketplace"
+  },
+  "profiles": {
+    "base": {
+      "description": "Everything inherits this. No plugins, no connectors off.",
+      "plugins": [],
+      "suggested": [],
+      "connectors_off": []
+    },
+    "bare": {
+      "extends": "base",
+      "description": "Quiet folders. Built-ins only.",
+      "plugins": [],
+      "suggested": []
+    },
+    "python-app": {
+      "extends": "base",
+      "description": "Python services and tools.",
+      "plugins": [],
+      "suggested": ["pyright-lsp@claude-plugins-official"]
+    },
+    "web-app": {
+      "extends": "base",
+      "description": "TypeScript/Python web applications.",
+      "plugins": [],
+      "suggested": [
+        "typescript-lsp@claude-plugins-official",
+        "pyright-lsp@claude-plugins-official",
+        "security-guidance@claude-plugins-official"
+      ]
+    },
+    "static-site": {
+      "extends": "base",
+      "description": "Static marketing or docs sites.",
+      "plugins": [],
+      "suggested": ["frontend-design@claude-plugins-official"]
+    },
+    "docs": {
+      "extends": "base",
+      "description": "Notes, writing and reference folders.",
+      "plugins": [],
+      "suggested": []
+    }
+  }
+}

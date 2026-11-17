@@ -1,0 +1,10 @@
+{
+  "_about": "Which profile each project uses. Keys are paths relative to the root ('.' is the root itself). Extras override the profile: plugins_on, plugins_off, connectors_on, connectors_off.",
+  "projects": {
+    ".": {"profile": "bare"},
+    "my-api": {"profile": "python-app"},
+    "my-web-app": {"profile": "web-app", "plugins_on": ["typescript-lsp@claude-plugins-official"]},
+    "my-site": {"profile": "static-site", "connectors_off": ["Example Connector"]},
+    "notes": {"profile": "docs", "notes": "Reference material only."}
+  }
+}

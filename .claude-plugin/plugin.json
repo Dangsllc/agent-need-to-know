@@ -1,0 +1,7 @@
+{
+  "name": "devconsole",
+  "version": "0.1.0",
+  "description": "Profiles and switches for which Claude Code plugins and claude.ai connectors each project folder uses.",
+  "author": {"name": "devconsole contributors"},
+  "license": "MIT"
+}
