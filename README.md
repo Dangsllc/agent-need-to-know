@@ -28,6 +28,10 @@ Create `~/.claude/devconsole/config.json` (set `DEVCONSOLE_CONFIG` to use anothe
 - Desired state is the resolved profile, then the extras.
 - Folders without an entry are `new`. Statuses: `ok`, `drift` (actual differs from desired), `missing` (a wanted plugin is not on this account), `new`, `gone`.
 
+## Launcher
+
+`bin/devconsole` opens the page, starting the server in the background if it is not running. `bin/devconsole stop` stops it. Any other argument passes through to `scripts/devconsole.py`. Alias it in your shell: `alias devconsole="/path/to/devconsole/bin/devconsole"`.
+
 ## Commands
 
 All run as `python3 scripts/devconsole.py <command>`; inside Claude Code use `/devconsole [scan|snapshot|apply <path>]`.

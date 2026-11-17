@@ -1,0 +1,39 @@
+#!/bin/sh
+# devconsole launcher: open the console, starting the server in the background if needed.
+#   devconsole          open (start if not running)
+#   devconsole stop     stop the background server
+#   devconsole <cmd>    pass through to devconsole.py (scan, check, apply, set, snapshot)
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PORT="${DEVCONSOLE_PORT:-8765}"
+URL="http://127.0.0.1:$PORT/"
+STATE="${HOME}/.claude/devconsole"
+mkdir -p "$STATE"
+
+up() { curl -s -o /dev/null --max-time 1 "$URL"; }
+
+case "$1" in
+  "")
+    if ! up; then
+      nohup python3 "$DIR/scripts/devconsole.py" serve --no-open --port "$PORT" >"$STATE/server.log" 2>&1 &
+      echo $! >"$STATE/server.pid"
+      i=0
+      while ! up; do
+        i=$((i + 1))
+        if [ "$i" -gt 50 ]; then echo "devconsole didn't start; see $STATE/server.log"; exit 1; fi
+        sleep 0.2
+      done
+    fi
+    open "$URL"
+    echo "devconsole: $URL  (stop with: devconsole stop)"
+    ;;
+  stop)
+    if [ -f "$STATE/server.pid" ] && kill "$(cat "$STATE/server.pid")" 2>/dev/null; then
+      rm -f "$STATE/server.pid"; echo "devconsole stopped"
+    else
+      pkill -f "devconsole.py serve" && echo "devconsole stopped" || echo "devconsole wasn't running"
+    fi
+    ;;
+  *)
+    exec python3 "$DIR/scripts/devconsole.py" "$@"
+    ;;
+esac
