@@ -1,13 +1,14 @@
 # Architecture
 
-devconsole decides what each project folder is allowed to load (plugins, connectors) and asks an **adapter** to make the agent tool match. The core knows nothing about any tool's files or CLI. Python standard library only.
+Agent Need-to-Know (`ntk`) decides what each project folder is allowed to load (plugins, connectors) and asks an **adapter** to make the agent tool match. The core knows nothing about any tool's files or CLI. Python standard library only.
 
 ## Layout
 
 ```
-scripts/devconsole.py          entry point (hooks, bin/ and the slash command call this path)
-scripts/devconsole_pkg/
-  config.py      paths, DEVCONSOLE_* env overrides, config.json, atomic writes, change log
+scripts/ntk.py              entry point (the hook, the launcher and the slash command call this path)
+scripts/ntk                 optional POSIX sh launcher (opens the page, passes other commands through)
+scripts/ntk_pkg/
+  config.py      paths, NTK_* env overrides, config.json, atomic writes, change log
   model.py       profiles.json / projects.json read+write with schema_version,
                  the capability id rule, resolve() (IAM evaluation), project discovery
   engine.py      evaluate desired vs actual, scan, plan/apply, profile and project edits,
@@ -32,7 +33,7 @@ Defined in `adapters/base.py`; `adapters.get()` returns the adapter the engine d
 
 | Method | Purpose |
 |---|---|
-| `owns(id)`, `is_self(id)` | the id rule; devconsole's own plugin is never managed |
+| `owns(id)`, `is_self(id)` | the id rule; ntk's own plugin is never managed |
 | `list_available(root)` | connector names available to the account, or `None` |
 | `list_plugins(path)` | plugins and their enabled state for a project, or `None` |
 | `read_project(path)` | file-only, fast: connectors off and enabled plugins (the hook uses only this) |
@@ -56,15 +57,15 @@ Profiles stay tool-neutral: a profile may list `a@market` (Claude Code), `Docs` 
 
 ## Data files and the schema contract
 
-All live in `data_dir` (from `~/.claude/devconsole/config.json`).
+All live in `data_dir` (from `~/.claude/agent-need-to-know/config.json`, or the old `~/.claude/devconsole/config.json` when the new one is absent; `NTK_*` environment variables override paths, with deprecated `DEVCONSOLE_*` fallbacks).
 
 | File | Holds |
 |---|---|
 | `profiles.json` | `default_profiles`, `plugin_accounts` (hints for the page), `profiles` (`plugins`, `connectors`, `deny_plugins`, `deny_connectors`, `group`, `description`) |
 | `projects.json` | `projects`: path relative to `root` -> `profiles`, `recommended`, `inline`, `notes` |
 | `capabilities.json` | the registry: id -> kind, status (`new`, `active`, `ignored`, `retired`, `gone`), first and last seen |
-| `.devconsole-cache.json`, `plugin_costs.json` | scan cache; optional token costs per plugin |
-| `devconsole.log`, `backups/`, `CONSOLE.md`, `CONSOLE.html` | change log, copies of `~/.claude.json`, generated snapshots |
+| `.ntk-cache.json`, `plugin_costs.json` | scan cache (an old `.devconsole-cache.json` is still read); optional token costs per plugin |
+| `ntk.log` (an existing `devconsole.log` keeps being appended to), `backups/`, `CONSOLE.md`, `CONSOLE.html` | change log, copies of `~/.claude.json`, generated snapshots |
 
 Contract:
 
@@ -73,4 +74,4 @@ Contract:
 - Writes always set `schema_version: 2` and keep `_about` and other `_` keys.
 - Greater than 2: `model.assert_writable` makes every mutating command exit 3 without writing; read-only commands warn (stderr, and `warnings` in the state the page shows) and never rewrite the file.
 - Id rule: a bare id (`name@marketplace`, or a plain connector name) is Claude Code; `<tool>:...` (`^[a-z0-9-]+:`) belongs to another tool. Implemented once, in `model.foreign_tool`.
-- Changing a shape in a way an older devconsole cannot read means bumping `SCHEMA_VERSION` in `model.py` and adding a migration on read.
+- Changing a shape in a way an older ntk cannot read means bumping `SCHEMA_VERSION` in `model.py` and adding a migration on read.
