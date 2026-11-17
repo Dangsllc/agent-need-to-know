@@ -1209,12 +1209,19 @@ def update_capabilities(cfg, lists, oi, connectors, profiles, complete=True):
         write_json_2(cfg.caps_path, data)
         return data, set(seen)
     caps, changed = existing["capabilities"], False
+    referenced = set()
+    for p in profiles.values():
+        referenced.update(p["plugins"] + p["deny_plugins"] + p["connectors"] + p["deny_connectors"])
     for i, s in seen.items():
         e = caps.get(i)
         if e is None:
-            caps[i] = _new_cap(s["kind"], "new", now, s["orgs"])
+            # already used by a profile = already adopted, so it isn't inbox news
+            caps[i] = _new_cap(s["kind"], "active" if i in referenced else "new", now, s["orgs"])
             changed = True
             continue
+        if e.get("status") == "new" and i in referenced:
+            e["status"] = "active"
+            changed = True
         if e.get("status") == "gone":
             e["status"] = "active"
             changed = True
