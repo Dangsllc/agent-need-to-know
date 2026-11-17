@@ -99,6 +99,16 @@ tr:last-child td{border-bottom:0}
 .st.ok{background:var(--ok-soft);color:var(--ok)} .st.new{background:var(--accent-dim);color:var(--accent)}
 .examples td:first-child{font-family:var(--mono);font-size:13px;white-space:nowrap}
 .examples .w{color:var(--muted);font-size:13px;margin-top:2px;font-family:var(--sans);white-space:normal}
+.ctx{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px}
+.ctx-row{display:grid;grid-template-columns:64px minmax(0,1fr) 52px;gap:12px;align-items:center}
+.ctx-k{font-family:var(--mono);font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+.ctx-v{font-family:var(--mono);font-size:14px;color:var(--text);text-align:right;font-variant-numeric:tabular-nums}
+.ctx-bar{display:flex;height:30px;border-radius:4px;overflow:hidden;background:var(--surface-2)}
+.seg{display:flex;align-items:center;padding:0 10px;font-family:var(--mono);font-size:12px;white-space:nowrap;overflow:hidden;min-width:0}
+.seg.core{background:var(--brand-soft);color:var(--brand)}
+.seg.plug{background:var(--accent);color:var(--bg)}
+.ctx-note{color:var(--dim);font-size:13px;margin:0;max-width:80ch}
+@media (max-width:520px){.ctx-row{grid-template-columns:52px minmax(0,1fr) 44px}.seg{font-size:11px;padding:0 6px}}
 .foot{color:var(--dim);font-size:14px}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 </style>
@@ -132,10 +142,15 @@ tr:last-child td{border-bottom:0}
   <p class="label">Cost</p>
   <h2>Less context, fewer tokens, lower cost</h2>
   <p class="desc">Every enabled plugin adds its skill listings to the start of a session, and those listings travel with every request in it. Prompt caching makes the repeats cheaper, but not free. Switching off what a project doesn't use shrinks every session that starts there.</p>
+  <div class="ctx" role="img" aria-label="Starting context per session in the author's setup: about 34,000 tokens before (14,000 core plus 20,000 plugin listings), about 15,000 after (14,000 core plus about 1,000 plugin listings).">
+    <div class="ctx-row"><span class="ctx-k">Before</span><div class="ctx-bar"><span class="seg core" style="width:41%">core 14k</span><span class="seg plug" style="width:59%">plugin listings 20k</span></div><span class="ctx-v">≈34k</span></div>
+    <div class="ctx-row"><span class="ctx-k">After</span><div class="ctx-bar"><span class="seg core" style="width:41%">core 14k</span><span class="seg plug" style="width:3%" title="plugin listings, 0 to 2k"></span></div><span class="ctx-v">≈15k</span></div>
+    <p class="ctx-note">Starting context per session in the author's setup. Core is the system prompt, built-in tools and skills, and memory files, which this tool doesn't change. The before total is the measured core plus the measured plugin listings.</p>
+  </div>
   <div class="grid">
-    <div class="card"><span class="tag">Measured in the author's setup</span><h3>About 20k → under 2k</h3><p>Tokens of plugin listings per session, before and after giving each project only its profiles.</p></div>
-    <div class="card"><span class="tag">Measured in the author's setup</span><h3>About 14k to start</h3><p>Total context when a session opens in a project with baseline only, before any work begins.</p></div>
-    <div class="card"><span class="tag">Where it shows up</span><h3>More room for the work</h3><p>On API billing, fewer input tokens on every turn. On a subscription, more of your usage limit goes to the task. Either way the model sorts through fewer tools when it picks one.</p></div>
+    <div class="card"><span class="tag">Measured in the author's setup</span><h3>About 20k → 0 to 2k</h3><p>Tokens of plugin listings per session, before and after. Each project now loads only its own plugins.</p></div>
+    <div class="card"><span class="tag">Estimate from the above</span><h3>About 540k per long session</h3><p>The listings are re-sent with every request. Over 30 turns, the trim removes about half a million input tokens, mostly billed at cached rates.</p></div>
+    <div class="card"><span class="tag">Where the win is</span><h3>Connectors are an access win</h3><p>Claude Code loads connector tools on demand, so switching connectors off saves little context. What it changes is what a session can reach.</p></div>
   </div>
 </section>
 
