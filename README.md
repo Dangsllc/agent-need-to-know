@@ -115,7 +115,7 @@ All run as `python3 scripts/devconsole.py <command>` (or `bin/devconsole <comman
 
 Missing plugins that come from a marketplace are installed with `claude plugin install <id> --scope local`. Plugins that only exist on a claude.ai account (`@synced`) cannot be installed from here and are reported with a hint.
 
-`bin/devconsole` opens the page, starting the server in the background if needed (`bin/devconsole stop` stops it). Claude Code puts `bin/` on the `PATH` while the plugin is enabled.
+`bin/devconsole` opens the page, starting the server in the background if needed (`bin/devconsole stop` stops it). While the plugin is enabled, Claude Code puts `bin/` on the `PATH` of the commands Claude runs (the Bash tool); alias it yourself to use it from your own shell.
 
 ## The page
 
@@ -126,6 +126,7 @@ Missing plugins that come from a marketplace are installed with `claude plugin i
 - The server binds to `127.0.0.1` only, rejects any request whose `Host` header is not `127.0.0.1` or `localhost`, and requires a random per-run token (header `X-Devconsole-Token`) on every write. It sends no CORS headers.
 - devconsole itself opens no outbound network connections and has no telemetry. It runs `claude plugin list`, `claude mcp list` and, for changes, `claude plugin enable|disable|install --scope local`; whatever network access those commands need (listing connectors, installing from a marketplace) is Claude Code's.
 - Plugins change only through those `claude plugin` commands. Connectors change by editing the claude.ai entries of `disabledMcpServers` for that one project in `~/.claude.json`: a timestamped copy goes to `data_dir/backups` first (once per run, last 20 kept), the write is atomic, the result is re-read to verify, and every other key is preserved.
+- The launcher (`bin/devconsole`) probes `127.0.0.1` with `curl`, starts or stops its own background server (`pkill -f "devconsole.py serve"` is the fallback for stop), and opens the page with `open` or `xdg-open`. `serve` opens it with Python's `webbrowser` unless `--no-open` is given.
 - Every change is appended to `data_dir/devconsole.log`.
 - It never uninstalls a plugin, deletes a folder or removes a settings key it does not manage. Stale entries for folders that no longer exist are only reported.
 - The SessionStart hook reads files only: it never runs `claude`, finishes in well under a second (the manifest allows 5 s), prints nothing for folders outside `root`, exits 0 on any error, and stays silent when a folder matches. The one exception is a single "no config found" hint, shown once on a machine with no config.
