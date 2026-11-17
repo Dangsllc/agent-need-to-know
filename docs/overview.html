@@ -106,10 +106,37 @@ tr:last-child td{border-bottom:0}
 <div class="wrap">
 
 <section class="hero">
-  <p class="label">Open source · Plugin for Claude Code</p>
-  <h1>Give each project <em>only</em> the plugins it needs.</h1>
-  <p class="sub">Every plugin and connector you turn on loads into every Claude Code session, in every folder. devconsole switches them on per project, similar to managing permissions in cloud environments: projects are like users, profiles are like groups, and nothing is on unless a profile grants it.</p>
-  <div class="stat"><span><b>4 steps</b> from profile to session</span><span><b>1 page</b> for every project</span><span><b>No dependencies</b> beyond Python</span></div>
+  <p class="label">Open source · Privacy controls for AI agents</p>
+  <h1>Minimum necessary, <em>applied to AI agents.</em></h1>
+  <p class="sub">An agent session should reach the tools and data sources its task needs, and nothing more. devconsole sets that per project for the plugins and connectors your AI agents load, similar to managing permissions in cloud environments: projects are like users, profiles are like groups, and nothing is on unless a profile grants it.</p>
+  <div class="stat"><span><b>Least privilege</b> by default</span><span><b>A written record</b> of every grant</span><span><b>Smaller context</b> in every session</span></div>
+</section>
+
+
+<section>
+  <p class="label">For your privacy program</p>
+  <h2>Agent tooling belongs under the same access rules as your people</h2>
+  <p class="desc">When a session can reach a mailbox, a document store or a CRM, that connector is an access path to whatever sits behind it. A privacy program already has rules for access paths. devconsole lets you apply them to agents, project by project.</p>
+  <div class="grid">
+    <div class="card"><span class="tag">HIPAA · 45 CFR 164.502(b), 164.514(d)</span><h3>Minimum necessary</h3><p>Uses of protected health information are limited to what the purpose requires, and access is set by role. A session working on the website has no reason to reach the mailbox or the patient-facing document store. With devconsole that is the default rather than a habit.</p></div>
+    <div class="card"><span class="tag">HIPAA · 164.308(a)(4), 164.312(a)(1)</span><h3>Access by role, granted on purpose</h3><p>Information access management and access control ask that access be authorized for a function and then enforced. Profiles are the roles, and each project's attachments are the authorization. Connectors start off until a profile grants them.</p></div>
+    <div class="card"><span class="tag">42 CFR Part 2 · 2.13(a)</span><h3>Disclose only what the purpose needs</h3><p>Part 2 limits any disclosure of substance use disorder records to the information necessary for its purpose. A connector that reaches a Part 2 program's records belongs in one narrow profile, attached only to the projects that do that work.</p></div>
+    <div class="card"><span class="tag">HIPAA · 164.316(b)(1)</span><h3>A record you can show</h3><p>Profiles and attachments are plain files, every change is logged with a timestamp, and settings are backed up before each write. When someone asks which agent sessions could reach a system, the answer is a file, not a recollection.</p></div>
+  </div>
+  <p class="note"><b>A question worth asking:</b> for each AI agent tool your team uses, could you list which connectors a session in any given project can reach today? devconsole makes that list exist and keeps it current.</p>
+  <p class="foot">Scope: devconsole governs which plugins and connectors an agent session loads. It does not restrict file access, encrypt data or replace a business associate agreement. Pair it with your agent tool's own permission settings and your vendor agreements.</p>
+</section>
+
+
+<section>
+  <p class="label">Cost</p>
+  <h2>Less context, fewer tokens, lower cost</h2>
+  <p class="desc">Every enabled plugin adds its skill listings to the start of a session, and those listings travel with every request in it. Prompt caching makes the repeats cheaper, but not free. Switching off what a project doesn't use shrinks every session that starts there.</p>
+  <div class="grid">
+    <div class="card"><span class="tag">Measured in the author's setup</span><h3>About 20k → under 2k</h3><p>Tokens of plugin listings per session, before and after giving each project only its profiles.</p></div>
+    <div class="card"><span class="tag">Measured in the author's setup</span><h3>About 14k to start</h3><p>Total context when a session opens in a project with baseline only, before any work begins.</p></div>
+    <div class="card"><span class="tag">Where it shows up</span><h3>More room for the work</h3><p>On API billing, fewer input tokens on every turn. On a subscription, more of your usage limit goes to the task. Either way the model sorts through fewer tools when it picks one.</p></div>
+  </div>
 </section>
 
 <section>
@@ -277,7 +304,7 @@ svg.flowsvg{display:block;min-width:820px;width:100%;height:auto}
   <h2>Two commands to start</h2>
 <pre class="term">/plugin marketplace add &lt;owner&gt;/devconsole
 /plugin install devconsole@devconsole</pre>
-  <p class="foot">Python standard library and one HTML page. It runs on your machine, listens on localhost only, backs up settings before every write and sends nothing anywhere.</p>
+  <p class="foot">Works with Claude Code today. The profile model doesn't depend on any one tool, and adapters for Codex CLI and Gemini CLI are planned. Python standard library and one HTML page: it runs on your machine, listens on localhost only, backs up settings before every write and sends nothing anywhere.</p>
 </section>
 
 </div>
