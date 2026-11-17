@@ -205,6 +205,11 @@ def actual_connectors_off(cj, abspath):
     return [norm_conn(x) for x in e.get("disabledMcpServers", []) or [] if x.startswith(PREFIX)]
 
 
+def _is_self(pid):
+    """devconsole manages the others; it is always on and never counts as drift."""
+    return str(pid).split("@")[0] == "devconsole"
+
+
 def file_enabled_plugins(abspath):
     """enabledPlugins merged: user settings, project settings, project local."""
     merged = {}
@@ -215,7 +220,8 @@ def file_enabled_plugins(abspath):
         ep = d.get("enabledPlugins") if isinstance(d, dict) else None
         if isinstance(ep, dict):
             for k, v in ep.items():
-                merged[k] = bool(v)
+                if not _is_self(k):
+                    merged[k] = bool(v)
     return merged
 
 
@@ -373,7 +379,7 @@ def evaluate(cfg, rel, entry, profiles, cj, plugin_list, connectors_avail, costs
     des = desired_state(profiles, entry)
     res["desired"] = des
     actual_off = actual_connectors_off(cj, ap)
-    enabled = {p["id"] for p in plugin_list or [] if p["enabled"]}
+    enabled = {p["id"] for p in plugin_list or [] if p["enabled"] and not _is_self(p["id"])}
     present = {p["id"] for p in plugin_list or []}
     scanned = plugin_list is not None
     ids = _uniq(des["plugins"] + des["suggested"] + sorted(enabled))
