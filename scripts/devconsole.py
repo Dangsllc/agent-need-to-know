@@ -5,7 +5,6 @@ import argparse
 import concurrent.futures
 import datetime
 import glob
-import hashlib
 import http.server
 import json
 import os
@@ -945,7 +944,7 @@ def main(argv=None):
         return do_set(cfg, args.relpath, args.kind, args.ident, args.value)
     if args.cmd == "snapshot":
         snapshot(cfg)
-        print("wrote %s and %s" % (os.path.join(cfg.data_dir, "CONSOLE.md"), os.path.join(cfg.data_dir, "CONSOLE.html")))
+        print("saved %s and %s" % (os.path.join(cfg.data_dir, "CONSOLE.md"), os.path.join(cfg.data_dir, "CONSOLE.html")))
         return 0
     if args.cmd == "serve":
         serve(cfg, args.port, not args.no_open)
