@@ -1,11 +1,12 @@
 {
   "name": "devconsole",
-  "owner": {"name": "devconsole contributors"},
+  "description": "devconsole: least-privilege control for the plugins and connectors Claude Code sessions load.",
+  "owner": {"name": "<owner>"},
   "plugins": [
     {
       "name": "devconsole",
       "source": "./",
-      "description": "Profiles and switches for which Claude Code plugins and claude.ai connectors each project folder uses."
+      "description": "Least-privilege control for the plugins and connectors Claude Code sessions load: composable per-project profiles, deny-by-default connectors, a local console page."
     }
   ]
 }

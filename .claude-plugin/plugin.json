@@ -1,7 +1,9 @@
 {
   "name": "devconsole",
-  "version": "0.1.0",
-  "description": "Profiles and switches for which Claude Code plugins and claude.ai connectors each project folder uses.",
-  "author": {"name": "devconsole contributors"},
-  "license": "MIT"
+  "version": "1.0.0",
+  "description": "Least-privilege control for the plugins and connectors Claude Code sessions load: composable per-project profiles, deny-by-default connectors, a local console page.",
+  "author": {"name": "<owner>"},
+  "repository": "https://github.com/<owner>/devconsole",
+  "license": "MIT",
+  "keywords": ["privacy", "least-privilege", "plugins", "mcp", "connectors", "hipaa", "profiles", "minimum-necessary", "claude-code"]
 }
