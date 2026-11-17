@@ -8,22 +8,26 @@ import os
 import re
 import subprocess
 
-from ..config import atomic_write, log_change, read_json
+from ..config import atomic_write, env, log_change, read_json
 from ..model import PREFIX, _uniq, abs_of, foreign_tool, norm_conn
 from .base import Adapter
 
 
+# this plugin's own name, and its working name before the public release
+SELF_NAMES = ("agent-need-to-know", "devconsole")
+
+
 def claude_json_path():
-    return os.environ.get("DEVCONSOLE_CLAUDE_JSON") or os.path.expanduser("~/.claude.json")
+    return env("CLAUDE_JSON") or os.path.expanduser("~/.claude.json")
 
 
 
 def claude_home():
-    return os.environ.get("DEVCONSOLE_CLAUDE_HOME") or os.path.expanduser("~/.claude")
+    return env("CLAUDE_HOME") or os.path.expanduser("~/.claude")
 
 
 def user_settings_path():
-    return os.environ.get("DEVCONSOLE_USER_SETTINGS") or os.path.join(claude_home(), "settings.json")
+    return env("USER_SETTINGS") or os.path.join(claude_home(), "settings.json")
 
 
 
@@ -48,8 +52,8 @@ def actual_connectors_off(cj, abspath):
 
 
 def _is_self(pid):
-    """devconsole manages the others; it is always on and never counts as drift."""
-    return str(pid).split("@")[0] == "devconsole"
+    """ntk manages the others; it is always on and never counts as drift."""
+    return str(pid).split("@")[0] in SELF_NAMES
 
 
 def file_enabled_plugins(abspath):

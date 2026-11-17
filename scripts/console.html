@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>devconsole</title>
+<title>Agent Need-to-Know</title>
 <style>
 :root{
   --bg:#f6f7f9; --panel:#ffffff; --ink:#1c2128; --muted:#667085; --line:#e3e6eb; --hover:#f0f3f7;
@@ -124,7 +124,7 @@ td.path small{display:block;color:var(--muted);font-weight:400;max-width:220px;w
 </head>
 <body>
 <header>
-  <h1>devconsole</h1>
+  <h1>Agent Need-to-Know</h1>
   <div class="sub" id="org">Loading...</div>
   <div class="bar">
     <div class="chips" id="chips"></div>
@@ -191,7 +191,7 @@ function short(id){ return id.split("@")[0]; }
 function anyBusy(){ return Object.keys(busy).length > 0; }
 
 async function api(path, body){
-  var opts = body ? {method:"POST",headers:{"Content-Type":"application/json","X-Devconsole-Token":BOOT.token},body:JSON.stringify(body)} : {};
+  var opts = body ? {method:"POST",headers:{"Content-Type":"application/json","X-Ntk-Token":BOOT.token},body:JSON.stringify(body)} : {};
   var r = await fetch(path, opts);
   var j = await r.json();
   if(!r.ok) throw new Error(j.error||("HTTP "+r.status));
@@ -366,6 +366,7 @@ function render(){
   var ninl = state.projects.reduce(function(a,p){ return a + (p.inline_items||[]).length; }, 0);
   if(ninl) chips.appendChild(el("span","chip inl", ninl+" inline"));
   renderBanners();
+  var ft = document.getElementById("foot"); ft.textContent = (state.notes||[]).join(" ");
   if(tab==="projects") renderProjects(); else if(tab==="profiles") renderProfiles(); else renderCaps();
 }
 
@@ -729,5 +730,6 @@ else {
   setInterval(function(){ if(document.visibilityState==="visible" && !anyBusy() && !menu && !pendingEdit && !showNewForm && !capSel && !capEdit) load(false); }, 30000);
 }
 </script>
+<div class="sub" id="foot" style="margin:24px 0 8px"></div>
 </body>
 </html>

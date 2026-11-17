@@ -11,10 +11,10 @@ import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_devconsole import Env, jdump  # noqa: E402
+from test_core import Env, jdump  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ENTRY = os.path.join(REPO, "scripts", "devconsole.py")
+ENTRY = os.path.join(REPO, "scripts", "ntk.py")
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 import check_leaks  # noqa: E402
 
@@ -34,14 +34,14 @@ class Sandbox(object):
     def __init__(self, t):
         self.t = t
         self.home = os.path.join(t, "home")
-        os.makedirs(os.path.join(self.home, ".claude", "devconsole"))
+        os.makedirs(os.path.join(self.home, ".claude", "agent-need-to-know"))
         self.log = os.path.join(t, "claude-calls.log")
         fake_claude(os.path.join(t, "bin"), self.log)
-        self.config = os.path.join(self.home, ".claude", "devconsole", "config.json")
-        self.env = dict(os.environ, HOME=self.home, DEVCONSOLE_CONFIG=self.config,
-                        DEVCONSOLE_CLAUDE_JSON=os.path.join(self.home, ".claude.json"),
-                        DEVCONSOLE_CLAUDE_HOME=os.path.join(self.home, ".claude"),
-                        DEVCONSOLE_USER_SETTINGS=os.path.join(self.home, ".claude", "settings.json"),
+        self.config = os.path.join(self.home, ".claude", "agent-need-to-know", "config.json")
+        self.env = dict(os.environ, HOME=self.home, NTK_CONFIG=self.config,
+                        NTK_CLAUDE_JSON=os.path.join(self.home, ".claude.json"),
+                        NTK_CLAUDE_HOME=os.path.join(self.home, ".claude"),
+                        NTK_USER_SETTINGS=os.path.join(self.home, ".claude", "settings.json"),
                         PATH=os.path.join(t, "bin") + os.pathsep + os.environ.get("PATH", ""))
 
     def run(self, *args, **kw):
@@ -98,7 +98,7 @@ class TestHook(Env):
         self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
 
     def test_hook_never_fails_loudly(self):
-        for name in ("profiles.json", "projects.json", ".devconsole-cache.json", "capabilities.json"):
+        for name in ("profiles.json", "projects.json", ".ntk-cache.json", ".devconsole-cache.json", "capabilities.json"):
             with open(os.path.join(self.data, name), "w") as f:
                 f.write("{ not json")
         r, _ = self.hook(os.path.join(self.root, "app"))
@@ -129,7 +129,7 @@ class TestCleanInstall(unittest.TestCase):
             t = os.path.realpath(t)
             sb = Sandbox(t)
             root = os.path.join(t, "code")
-            data = os.path.join(t, "code", "_devconsole")
+            data = os.path.join(t, "code", "_ntk")
             for n in ("my-api", "my-web-app"):  # names used by the shipped example projects.json
                 os.makedirs(os.path.join(root, n))
             # 1. no config: the hook says how to start, exactly once

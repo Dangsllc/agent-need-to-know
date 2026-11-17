@@ -18,12 +18,12 @@ from .server import serve
 def need_config():
     cfg = load_config()
     if cfg is None:
-        sys.exit("devconsole: no config at %s. Create it with {\"root\": \"~/code\", \"data_dir\": \"~/code/_devconsole\"}." % config_path())
+        sys.exit("ntk: no config at %s. Create it with {\"root\": \"~/code\", \"data_dir\": \"~/code/_ntk\"}." % config_path())
     return cfg
 
 
 def build_parser():
-    ap = argparse.ArgumentParser(prog="devconsole")
+    ap = argparse.ArgumentParser(prog="ntk")
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("scan")
     s.add_argument("--json", action="store_true")
@@ -87,7 +87,7 @@ def build_parser():
     return ap
 
 
-# commands that only read: a data file from a newer devconsole is a warning, not an error
+# commands that only read: a data file from a newer ntk is a warning, not an error
 READ_ONLY = ("scan", "inbox", "snapshot", "serve")
 
 
@@ -106,7 +106,7 @@ def main(argv=None):
     try:
         rc = _dispatch(ap, args)
     except SchemaTooNew as e:
-        sys.stderr.write("devconsole: refusing to write: %s\n" % e)
+        sys.stderr.write("ntk: refusing to write: %s\n" % e)
         return 3
     if args.cmd in READ_ONLY or args.cmd == "capability":
         _warn()
@@ -115,7 +115,7 @@ def main(argv=None):
 
 def _warn():
     for w in model.WARNINGS:
-        sys.stderr.write("devconsole: warning: %s\n" % w)
+        sys.stderr.write("ntk: warning: %s\n" % w)
 
 
 def _dispatch(ap, args):
@@ -145,6 +145,8 @@ def _dispatch(ap, args):
                 print("  retired but seen again: %s %s" % (c["kind"], c["id"]))
         for m in st["missing"]:
             print("missing: %s in %s: %s" % (m["id"], ", ".join(m["projects"]), m["hint"]))
+        for n in st.get("notes", []):
+            print("note: " + n)
         for k in st["stale"]:
             print("stale ~/.claude.json entry (folder gone): %s" % k)
         return 0

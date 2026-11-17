@@ -26,7 +26,7 @@ class Adapter(object):
         raise NotImplementedError
 
     def is_self(self, pid):
-        """True for devconsole's own plugin id: always on, never drift."""
+        """True for this plugin's own id: always on, never drift."""
         return False
 
     # --- reading (what exists, what is set) -----------------------------------

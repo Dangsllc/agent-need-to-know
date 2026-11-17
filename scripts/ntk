@@ -1,0 +1,42 @@
+#!/bin/sh
+# ntk launcher (Agent Need-to-Know): open the console, starting the server in the background if needed.
+#   ntk          open (start if not running)
+#   ntk stop     stop the background server
+#   ntk <cmd>    pass through to ntk.py (scan, check, apply, attach, detach, profile, inline, snapshot)
+# Alias it: alias ntk="<plugin path>/scripts/ntk"
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PORT="${NTK_PORT:-${DEVCONSOLE_PORT:-8765}}"
+URL="http://127.0.0.1:$PORT/"
+STATE="${HOME}/.claude/agent-need-to-know"
+OLDSTATE="${HOME}/.claude/devconsole"
+mkdir -p "$STATE"
+
+up() { curl -s -o /dev/null --max-time 1 "$URL"; }
+
+case "$1" in
+  "")
+    if ! up; then
+      nohup python3 "$DIR/scripts/ntk.py" serve --no-open --port "$PORT" >"$STATE/server.log" 2>&1 &
+      echo $! >"$STATE/server.pid"
+      i=0
+      while ! up; do
+        i=$((i + 1))
+        if [ "$i" -gt 50 ]; then echo "ntk didn't start; see $STATE/server.log"; exit 1; fi
+        sleep 0.2
+      done
+    fi
+    if command -v open >/dev/null 2>&1; then open "$URL"; elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$URL" >/dev/null 2>&1; fi
+    echo "ntk: $URL  (stop with: ntk stop)"
+    ;;
+  stop)
+    stopped=""
+    for f in "$STATE/server.pid" "$OLDSTATE/server.pid"; do
+      if [ -f "$f" ] && kill "$(cat "$f")" 2>/dev/null; then rm -f "$f"; stopped=1; fi
+    done
+    if [ -z "$stopped" ] && { pkill -f "ntk.py serve" || pkill -f "devconsole.py serve"; }; then stopped=1; fi
+    if [ -n "$stopped" ]; then echo "ntk stopped"; else echo "ntk wasn't running"; fi
+    ;;
+  *)
+    exec python3 "$DIR/scripts/ntk.py" "$@"
+    ;;
+esac

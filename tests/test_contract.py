@@ -10,10 +10,10 @@ import http.server
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_devconsole import Env, AVAIL, jdump, jload  # noqa: E402
+from test_core import Env, AVAIL, jdump, jload  # noqa: E402
 
-from devconsole_pkg import cli, config, engine, lifecycle, model, server  # noqa: E402
-from devconsole_pkg.adapters import claude_code as cc  # noqa: E402
+from ntk_pkg import cli, config, engine, lifecycle, model, server  # noqa: E402
+from ntk_pkg.adapters import claude_code as cc  # noqa: E402
 
 
 def run_cli(*argv):
@@ -73,7 +73,7 @@ class TestSchemaVersion(Env):
                 before = {f: self.snap(f) for f in ("profiles.json", "projects.json", "capabilities.json")}
                 rc, out, err = run_cli("attach", "other", "py", "--no-apply")
                 self.assertEqual(rc, 3)
-                self.assertIn("newer devconsole", err)
+                self.assertIn("newer ntk", err)
                 self.assertIn("upgrade", err)
                 rc, _, err = run_cli("profile-new", "zzz")
                 self.assertEqual(rc, 3)
@@ -93,7 +93,7 @@ class TestSchemaVersion(Env):
         rc, out, err = run_cli("scan", "--json")
         self.assertEqual(rc, 0)
         self.assertIn("warning", err)
-        self.assertIn("newer devconsole", err)
+        self.assertIn("newer ntk", err)
         self.assertEqual(json.loads(out)["warnings"][0].split(" has ")[1][:16], "schema_version 7")
         self.assertEqual(self.snap("projects.json"), raw)  # scan never rewrites it
         rc, _, err = run_cli("capability", "list")
@@ -124,11 +124,11 @@ class TestServerSchema(Env):
         try:
             c = http.client.HTTPConnection("127.0.0.1", srv.server_address[1], timeout=20)
             c.request("POST", "/api/profile-new", json.dumps({"name": "zz"}),
-                      {"Content-Type": "application/json", "X-Devconsole-Token": "tok"})
+                      {"Content-Type": "application/json", "X-Ntk-Token": "tok"})
             r = c.getresponse()
             body = json.loads(r.read())
             self.assertEqual(r.status, 409)
-            self.assertIn("newer devconsole", body["error"])
+            self.assertIn("newer ntk", body["error"])
         finally:
             srv.shutdown()
             srv.server_close()

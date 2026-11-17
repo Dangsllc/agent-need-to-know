@@ -8,7 +8,8 @@ import os
 import time
 
 from . import adapters, lifecycle, model
-from .config import SCRIPTS_DIR, atomic_write, config_path, load_config, log_change, read_json, write_json_2
+from .config import (SCRIPTS_DIR, atomic_write, config_path, legacy_notes, load_config, log_change,
+                     read_json, state_read, state_write, write_json_2)
 from .model import (NAME_RE, _uniq, foreign_tool, _visible, abs_of, discover, find_project_key, load_profiles,
                     load_projects, norm_conn, norm_entry, resolve, save_profiles, save_projects)
 
@@ -21,7 +22,7 @@ def A():
 
 
 def load_cache(cfg):
-    c = read_json(cfg.cache_path, {})
+    c = read_json(cfg.cache_read_path, {})
     if not isinstance(c, dict):
         c = {}
     c.setdefault("projects", {})
@@ -206,7 +207,7 @@ def scan(cfg, fresh=False):
         "counts": counts, "projects": rows, "stale": stale, "missing": miss_list,
         "has_costs": costs is not None,
         "capabilities": lifecycle.caps_view(caps, rows, profiles, oi, seen_ids),
-        "warnings": list(model.WARNINGS),
+        "warnings": list(model.WARNINGS), "notes": legacy_notes(),
         "inbox": {st: sorted(i for i, e in caps["capabilities"].items() if e["status"] == st) for st in ("new", "gone")},
     }
 
@@ -579,10 +580,10 @@ def profile_default(cfg, op, name, dry=False, apply=True, out=print):
 def check_path(path, hook=False):
     cfg = load_config()
     if cfg is None:
-        hint = ("devconsole: no config found. Create %s with "
-                '{"root": "~/code", "data_dir": "~/code/_devconsole"} to get started.' % config_path())
-        hinted = os.path.join(os.path.dirname(config_path()), ".hinted")
-        if not os.path.exists(hinted):
+        hint = ("ntk: no config found. Create %s with "
+                '{"root": "~/code", "data_dir": "~/code/_ntk"} to get started.' % config_path())
+        if not os.path.exists(state_read(".hinted")):
+            hinted = state_write(".hinted")
             os.makedirs(os.path.dirname(hinted), exist_ok=True)
             with open(hinted, "w") as hf:
                 hf.write("shown\n")
@@ -596,9 +597,9 @@ def check_path(path, hook=False):
     if key is None and rel != "." and not _visible(rel.split(os.sep)[0]):
         return  # hidden/underscore folders (_archive, .git, node_modules…) are never "new"
     if key is None:
-        msg = ("devconsole: this folder (%s) has no plugin profile, so every claude.ai connector is on "
+        msg = ("ntk: this folder (%s) has no plugin profile, so every claude.ai connector is on "
                "and no project plugins are set. Offer the user /project-setup." % rel)
-        _emit(msg + lifecycle._caps_hint(cfg, hook), hook, plain="devconsole: %s is new (no profile)" % rel)
+        _emit(msg + lifecycle._caps_hint(cfg, hook), hook, plain="ntk: %s is new (no profile)" % rel)
         return
     entry = projects[key]
     conn = (load_cache(cfg).get("connectors") or {}).get("names") or None  # no cache: skip connector drift
@@ -625,10 +626,10 @@ def check_path(path, hook=False):
         bits.append("%d connector(s) to turn on" % len(c_on))
     label = "profiles %s" % (", ".join(des["own"]) or "none")
     if bits:
-        _emit("devconsole: %s (%s) differs from its profiles: %s. Run /devconsole to review."
+        _emit("ntk: %s (%s) differs from its profiles: %s. Run /ntk to review."
               % (key, label, ", ".join(bits)) + lifecycle._caps_hint(cfg, hook), hook)
     elif not hook:
-        print("devconsole: %s (%s): ok" % (key, label))
+        print("ntk: %s (%s): ok" % (key, label))
     else:
         h = lifecycle._caps_hint(cfg, hook)
         if h:

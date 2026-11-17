@@ -6,7 +6,7 @@ import json
 import os
 
 from . import adapters
-from .config import atomic_write, config_path, log_change, now_iso, read_json
+from .config import atomic_write, log_change, now_iso, read_json, state_read, state_write
 from .model import (INLINE_KEYS, SchemaTooNew, abs_of, foreign_tool, load_profiles,
                     load_projects, norm_conn, read_versioned, save_profiles, save_projects,
                     write_versioned)
@@ -35,7 +35,7 @@ def load_caps(cfg):
 
 def save_caps(cfg, data, strict=True):
     """Write capabilities.json (always schema_version 2). If the file on disk is from
-    a newer devconsole, strict writes raise SchemaTooNew; non-strict ones (the scan,
+    a newer ntk, strict writes raise SchemaTooNew; non-strict ones (the scan,
     a read-only command) skip the write and leave a warning."""
     try:
         write_versioned(cfg.caps_path, data)
@@ -269,13 +269,13 @@ def _caps_hint(cfg, hook):
     n = sum(1 for e in (d or {"capabilities": {}})["capabilities"].values() if e.get("status") == "new")
     if not n:
         return ""
-    sp = os.path.join(os.path.dirname(config_path()), ".capabilities-hint.json")
+    sp = state_read(".capabilities-hint.json")
     today = datetime.date.today().isoformat()
     if (read_json(sp, {}) or {}).get("date") == today:
         return ""
     try:
-        atomic_write(sp, json.dumps({"date": today}) + "\n")
+        atomic_write(state_write(".capabilities-hint.json"), json.dumps({"date": today}) + "\n")
     except Exception:
         return ""
-    return " devconsole: %d new capabilit%s waiting in the inbox (run `devconsole` to review)." % (n, "y" if n == 1 else "ies")
+    return " ntk: %d new capabilit%s waiting in the inbox (run `ntk` to review)." % (n, "y" if n == 1 else "ies")
 

@@ -15,7 +15,7 @@ SKIP_DIRS = {"node_modules", "venv", ".venv", "__pycache__", "dist", "build",
 
 # ------------------------------------------------------------ schema contract
 class SchemaTooNew(Exception):
-    """A data file declares a schema_version newer than this devconsole understands."""
+    """A data file declares a schema_version newer than this ntk understands."""
 
 
 WARNINGS = []  # read-time notices (de-duplicated); the CLI prints them to stderr
@@ -32,12 +32,12 @@ def too_new_message(path, d):
     v = file_version(d)
     if v <= SCHEMA_VERSION:
         return None
-    return ("%s has schema_version %d, written by a newer devconsole (this one supports up to %d); "
-            "upgrade devconsole" % (path, v, SCHEMA_VERSION))
+    return ("%s has schema_version %d, written by a newer ntk (this one supports up to %d); "
+            "upgrade ntk" % (path, v, SCHEMA_VERSION))
 
 
 def read_versioned(path, default):
-    """read_json plus a recorded warning when the file is from a newer devconsole.
+    """read_json plus a recorded warning when the file is from a newer ntk.
     Reading stays best effort; writing is refused (see write_versioned)."""
     d = read_json(path, default)
     msg = too_new_message(path, d)
@@ -47,14 +47,14 @@ def read_versioned(path, default):
 
 
 def check_schema_file(path):
-    """Raise SchemaTooNew if the file currently on disk is from a newer devconsole."""
+    """Raise SchemaTooNew if the file currently on disk is from a newer ntk."""
     msg = too_new_message(path, read_json(path, None))
     if msg:
         raise SchemaTooNew(msg)
 
 
 def assert_writable(cfg):
-    """Raise SchemaTooNew if any data file is from a newer devconsole. Mutating
+    """Raise SchemaTooNew if any data file is from a newer ntk. Mutating
     commands call this first so they never act on data they cannot fully read."""
     for p in (cfg.profiles_path, cfg.projects_path, cfg.caps_path):
         check_schema_file(p)

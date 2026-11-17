@@ -11,8 +11,8 @@ import time
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
-from devconsole_pkg import config, engine, lifecycle, model, server  # noqa: E402
-from devconsole_pkg.adapters import claude_code as cc  # noqa: E402
+from ntk_pkg import config, engine, lifecycle, model, server  # noqa: E402
+from ntk_pkg.adapters import claude_code as cc  # noqa: E402
 
 
 def jdump(obj, path):
@@ -73,9 +73,9 @@ class Env(unittest.TestCase):
         jdump({}, os.path.join(t, "user-settings.json"))
         jdump({"projects": {}}, self.cj)
         self.saved = dict(os.environ)
-        os.environ.update({"DEVCONSOLE_CONFIG": self.cfgfile, "DEVCONSOLE_CLAUDE_JSON": self.cj,
-                           "DEVCONSOLE_USER_SETTINGS": os.path.join(t, "user-settings.json"),
-                           "DEVCONSOLE_CLAUDE_HOME": os.path.join(t, "home")})
+        os.environ.update({"NTK_CONFIG": self.cfgfile, "NTK_CLAUDE_JSON": self.cj,
+                           "NTK_USER_SETTINGS": os.path.join(t, "user-settings.json"),
+                           "NTK_CLAUDE_HOME": os.path.join(t, "home")})
         # never shell out to the real claude CLI
         self._orig = (cc.fetch_plugin_list, cc.fetch_connectors, cc.run)
         self.cmds = []
@@ -96,7 +96,7 @@ class Env(unittest.TestCase):
         c = {"projects": {}}
         if names is not None:
             c["connectors"] = {"ts": time.time(), "names": names}
-        jdump(c, os.path.join(self.data, ".devconsole-cache.json"))
+        jdump(c, os.path.join(self.data, ".ntk-cache.json"))
 
     def tearDown(self):
         cc.fetch_plugin_list, cc.fetch_connectors, cc.run = self._orig
@@ -251,10 +251,12 @@ class TestEvaluate(Env):
         self.assertEqual(r["inline_items"], [{"kind": "plugin", "id": "z@x", "value": "on"}])
         self.assertEqual(r["plugins"][0]["inline"], "on")
 
-    def test_devconsole_itself_never_drifts(self):
-        pl = [{"id": "devconsole@devconsole", "enabled": True}]
+    def test_core_itself_never_drifts(self):
+        pl = [{"id": "agent-need-to-know@agent-need-to-know", "enabled": True},
+              {"id": "devconsole@devconsole", "enabled": True}]
         r = self.row("other", pl)
         self.assertNotIn("devconsole@devconsole", [p["id"] for p in r["plugins"]])
+        self.assertNotIn("agent-need-to-know@agent-need-to-know", [p["id"] for p in r["plugins"]])
 
     def test_missing_hints(self):
         oi = {"orgs": [{"id8": "aaaa1111", "current": False, "plugins": ["eng"]},
@@ -292,7 +294,7 @@ class TestCheck(Env):
 
     def test_drift_then_ok(self):
         out = json.loads(self.check(os.path.join(self.root, "app")))
-        self.assertIn("/devconsole", out["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("/ntk", out["hookSpecificOutput"]["additionalContext"])
         os.makedirs(os.path.join(self.root, "app", ".claude"))
         jdump({"enabledPlugins": {"a@x": True, "b@x": True}},
               os.path.join(self.root, "app", ".claude", "settings.local.json"))
@@ -325,7 +327,7 @@ class TestCheck(Env):
         self.assertEqual(self.check(os.path.join(self.root, "_archive")), "")
 
     def test_missing_config_hints_once(self):
-        os.environ["DEVCONSOLE_CONFIG"] = os.path.join(self.tmp.name, "nope", "config.json")
+        os.environ["NTK_CONFIG"] = os.path.join(self.tmp.name, "nope", "config.json")
         self.assertIn("no config", self.check("/tmp"))
         self.assertEqual(self.check("/tmp"), "")
 
@@ -575,7 +577,7 @@ class TestServer(Env):
         c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=20)
         h = {"Content-Type": "application/json"}
         if token:
-            h["X-Devconsole-Token"] = self.token
+            h["X-Ntk-Token"] = self.token
         if host:
             h["Host"] = host
         c.request(method, path, json.dumps(body) if body is not None else None, h)
@@ -788,7 +790,7 @@ class TestCapabilities(Env):
         jdump(d, self.capf)
         self.cmds.clear()
         first = self.check(os.path.join(self.root, "newone"))
-        self.assertIn("devconsole: 1 new capability waiting in the inbox (run `devconsole` to review).", first)
+        self.assertIn("ntk: 1 new capability waiting in the inbox (run `ntk` to review).", first)
         self.assertEqual(self.check(os.path.join(self.root, "newone")).count("waiting in the inbox"), 0)
         self.assertEqual(self.cmds, [])
         # silent path with a hint when a new day starts
@@ -802,7 +804,7 @@ class TestCapabilities(Env):
         jdump({"projects": {self.app: {"disabledMcpServers": ["claude.ai Gmail", "claude.ai Stripe"]}}}, self.cj)
         out = json.loads(self.check(self.app))
         self.assertEqual(out["hookSpecificOutput"]["additionalContext"],
-                         "devconsole: 2 new capabilities waiting in the inbox (run `devconsole` to review).")
+                         "ntk: 2 new capabilities waiting in the inbox (run `ntk` to review).")
 
 
 class TestDenyAndDefaults(Env):
@@ -854,7 +856,7 @@ class TestCapabilityApi(Env):
         c = http.client.HTTPConnection("127.0.0.1", self.srv.server_address[1], timeout=30)
         h = {"Content-Type": "application/json"}
         if token:
-            h["X-Devconsole-Token"] = self.token
+            h["X-Ntk-Token"] = self.token
         c.request("POST", path, json.dumps(body), h)
         r = c.getresponse()
         return r.status, json.loads(r.read() or b"{}")

@@ -96,7 +96,7 @@ def make_handler(cfg, token):
     state_lock = threading.Lock()
 
     class H(http.server.BaseHTTPRequestHandler):
-        server_version = "devconsole"
+        server_version = "ntk"
 
         def log_message(self, *a):
             pass
@@ -133,7 +133,7 @@ def make_handler(cfg, token):
         def do_POST(self):
             if not self._host_ok():
                 return self._send(403, '{"error":"bad host"}')
-            if not secrets.compare_digest(self.headers.get("X-Devconsole-Token") or "", token):
+            if not secrets.compare_digest(self.headers.get("X-Ntk-Token") or "", token):
                 return self._send(403, '{"error":"bad token"}')
             u = urlparse(self.path)
             try:
@@ -164,7 +164,7 @@ def serve(cfg, port, open_browser):
     token = secrets.token_urlsafe(24)
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), make_handler(cfg, token))
     url = "http://127.0.0.1:%d/" % port
-    print("devconsole serving on %s (Ctrl-C to stop)" % url, flush=True)
+    print("ntk serving on %s (Ctrl-C to stop)" % url, flush=True)
     if open_browser:
         webbrowser.open(url)
     try:
