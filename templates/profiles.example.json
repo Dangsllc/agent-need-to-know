@@ -1,52 +1,49 @@
 {
-  "_about": "Named setups for Claude Code projects. A project picks one profile in projects.json, plus optional extras. 'plugins' are applied; 'suggested' are shown in the console but not applied until turned on. 'connectors_off' names claude.ai connectors to disable (without the 'claude.ai ' prefix). 'extends' inherits plugins and connectors_off; a child's connectors_on re-enables an inherited one.",
+  "_about": "Profiles are groups; projects are users. A project gets capability only from the profiles attached to it in projects.json, plus every profile in 'default_profiles'. Allowed = union of those profiles' plugins and connectors. 'deny_plugins' / 'deny_connectors' always win over any grant. Connectors are denied by default: a claude.ai connector no attached profile grants is turned off (names are written without the 'claude.ai ' prefix). Keep profiles small and single-purpose so they compose.",
+  "default_profiles": ["baseline"],
   "plugin_accounts": {
-    "_about": "Optional notes on where each plugin comes from.",
+    "_about": "Optional notes on where each plugin comes from; the page offers these ids when you add a plugin to a profile.",
     "pyright-lsp@claude-plugins-official": "official marketplace",
     "typescript-lsp@claude-plugins-official": "official marketplace",
     "security-guidance@claude-plugins-official": "official marketplace",
     "frontend-design@claude-plugins-official": "official marketplace"
   },
   "profiles": {
-    "base": {
-      "description": "Everything inherits this. No plugins, no connectors off.",
+    "baseline": {
+      "group": "default",
+      "description": "Attached to every project. No plugins, no connectors.",
       "plugins": [],
-      "suggested": [],
-      "connectors_off": []
+      "connectors": []
     },
-    "bare": {
-      "extends": "base",
-      "description": "Quiet folders. Built-ins only.",
-      "plugins": [],
-      "suggested": []
+    "lang-python": {
+      "group": "code",
+      "description": "Python code intelligence.",
+      "plugins": ["pyright-lsp@claude-plugins-official"],
+      "connectors": []
     },
-    "python-app": {
-      "extends": "base",
-      "description": "Python services and tools.",
-      "plugins": [],
-      "suggested": ["pyright-lsp@claude-plugins-official"]
+    "lang-typescript": {
+      "group": "code",
+      "description": "TypeScript and JavaScript code intelligence.",
+      "plugins": ["typescript-lsp@claude-plugins-official"],
+      "connectors": []
     },
-    "web-app": {
-      "extends": "base",
-      "description": "TypeScript/Python web applications.",
-      "plugins": [],
-      "suggested": [
-        "typescript-lsp@claude-plugins-official",
-        "pyright-lsp@claude-plugins-official",
-        "security-guidance@claude-plugins-official"
-      ]
+    "secure-code": {
+      "group": "code",
+      "description": "Flags risky edits as you go. For security-sensitive code.",
+      "plugins": ["security-guidance@claude-plugins-official"],
+      "connectors": []
     },
-    "static-site": {
-      "extends": "base",
-      "description": "Static marketing or docs sites.",
-      "plugins": [],
-      "suggested": ["frontend-design@claude-plugins-official"]
+    "frontend-design": {
+      "group": "code",
+      "description": "Distinctive, production-grade frontend UI.",
+      "plugins": ["frontend-design@claude-plugins-official"],
+      "connectors": []
     },
     "docs": {
-      "extends": "base",
-      "description": "Notes, writing and reference folders.",
+      "group": "writing",
+      "description": "Notes, writing and reference folders. Built-ins only.",
       "plugins": [],
-      "suggested": []
+      "connectors": []
     }
   }
 }

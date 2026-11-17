@@ -32,43 +32,80 @@ h1{font-size:18px;margin:0 0 2px}
 .bar input[type=search]{flex:1 1 160px;min-width:0}
 @media (max-width:600px){.spacer{display:none}}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid transparent}
-.chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.drift{color:var(--warn);background:var(--warn-bg)}
+.chip{display:inline-block;white-space:nowrap;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid transparent}
+.chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.drift,.chip.inl{color:var(--warn);background:var(--warn-bg)}
 .chip.missing,.chip.error{color:var(--bad);background:var(--bad-bg)} .chip.new{color:var(--new);background:var(--new-bg)}
 .chip.gone{color:var(--gone);background:var(--gone-bg)}
 button,select,input{font:inherit;color:var(--ink)}
-button.btn,select,input[type=search]{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+button.btn,select,input[type=search],input[type=text]{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
 button.btn{cursor:pointer} button.btn:hover{background:var(--hover)}
 button.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-button:disabled{cursor:not-allowed;opacity:.6}
+button.btn.sm{padding:1px 8px;font-size:12px}
+button:disabled,select:disabled{cursor:not-allowed;opacity:.6}
 .spacer{flex:1}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;margin:12px 0;padding:10px 12px}
 .panel h2{font-size:13px;margin:0 0 6px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
 .panel ul{margin:0;padding-left:18px}
+.panel summary{cursor:pointer;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
 code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
 .newrow{display:flex;gap:8px;align-items:center;padding:3px 0;flex-wrap:wrap}
-.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
-table{border-collapse:collapse;width:100%;min-width:900px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:8px 0 0}
+.tab{background:none;border:0;border-bottom:2px solid transparent;padding:6px 14px;cursor:pointer;color:var(--muted);font-weight:600}
+.tab[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel);margin-top:12px}
+table{border-collapse:collapse;width:100%;min-width:980px}
 th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 th{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);background:var(--panel);position:sticky;top:0;white-space:nowrap}
 tr:last-child td{border-bottom:0}
 tbody tr:hover{background:var(--hover)}
 td.path{font-weight:600;white-space:nowrap}
-td.path small{display:block;color:var(--muted);font-weight:400;max-width:240px;white-space:normal}
-.sws{display:flex;flex-wrap:wrap;gap:4px;max-width:420px}
+td.path small{display:block;color:var(--muted);font-weight:400;max-width:220px;white-space:normal}
+.sws{display:flex;flex-wrap:wrap;gap:4px;max-width:430px;align-items:center}
 .sw{border:1px solid var(--line);background:var(--sw-off);color:var(--sw-off-ink);border-radius:999px;padding:0 9px;font-size:12px;line-height:20px;cursor:pointer;white-space:nowrap}
 .sw.on{background:var(--sw-on);color:#fff;border-color:var(--sw-on)}
-.sw.suggested{background:transparent;border:1px dashed var(--muted);color:var(--muted)}
-.sw.missing{background:var(--bad-bg);color:var(--bad);border-color:var(--bad);cursor:not-allowed}
+.sw.missing{background:var(--bad-bg);color:var(--bad);border-color:var(--bad)}
 .sw.drift{box-shadow:0 0 0 2px var(--warn)}
 .sw.conn.off{text-decoration:line-through}
 .sw.conn.on{background:var(--ok-bg);color:var(--ok);border-color:transparent}
-.sw.ro{cursor:default}
-.confirm td{background:var(--warn-bg)}
+.sw.inl{border-color:var(--warn)}
+.sw.sel{outline:2px solid var(--accent);outline-offset:1px}
+.badge{display:inline-block;margin-left:5px;padding:0 5px;border-radius:4px;background:var(--warn-bg);color:var(--warn);font-size:10px;font-weight:700;line-height:14px;text-transform:uppercase;letter-spacing:.03em}
+.sw.on .badge{background:var(--warn);color:#fff}
+.pchips{display:flex;flex-wrap:wrap;gap:4px;align-items:center;max-width:380px}
+.pchip{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--accent);color:var(--accent);background:transparent;border-radius:999px;padding:0 8px;font-size:12px;line-height:20px}
+.pchip.default{border-color:var(--line);color:var(--muted)}
+.pchip.unknown{border-color:var(--bad);color:var(--bad);background:var(--bad-bg)}
+.pchip.rec{border-style:dashed;cursor:pointer}
+.pchip .x{border:0;background:none;color:inherit;cursor:pointer;padding:0 0 0 2px;font-size:14px;line-height:1}
+.pchip .x:hover{color:var(--bad)}
+.add{font-size:12px;padding:0 4px;max-width:96px}
+.pop{margin-top:6px;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:8px 10px;max-width:430px;box-shadow:0 4px 14px #0002;font-size:12.5px}
+.pop h3{margin:0 0 4px;font-size:12.5px}
+.pop .opts{display:flex;flex-wrap:wrap;gap:4px;margin:3px 0 6px}
+.pop .hint{color:var(--muted);margin:2px 0 4px}
+.pop .hint.bad{color:var(--bad)}
+.pop input[type=text]{padding:2px 6px;width:150px}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:4px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.working{color:var(--muted);font-size:12px}
 .hide{display:none}
 .msg{font-size:12.5px;color:var(--muted);min-height:18px}
 .msg.err{color:var(--bad)}
-.add{font-size:12px;padding:0 4px;max-width:70px}
+.groups{display:grid;gap:12px;margin-top:12px}
+.grp h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:10px 0 6px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-width:0}
+.card h3{margin:0;font-size:14px}
+.card .desc{color:var(--muted);font-size:12.5px;margin:2px 0 6px}
+.card h4{margin:8px 0 3px;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.card .list{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.item{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--line);background:var(--sw-off);border-radius:999px;padding:0 4px 0 9px;font-size:12px;line-height:20px}
+.item .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0 3px}
+.item .x:hover{color:var(--bad)}
+.card .projs a{color:var(--accent);cursor:pointer;font-size:12.5px;margin-right:8px;white-space:nowrap;text-decoration:underline}
+.confirmbox{margin-top:8px;border:1px solid var(--warn);background:var(--warn-bg);border-radius:6px;padding:6px 10px;font-size:12.5px}
+.confirmbox .row{display:flex;gap:6px;margin-top:6px}
+.tag{font-size:10.5px;font-weight:700;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-left:6px}
 @media (max-width:600px){ h1{font-size:16px} }
 </style>
 </head>
@@ -84,23 +121,47 @@ td.path small{display:block;color:var(--muted);font-weight:400;max-width:240px;w
     <button class="btn" id="refresh" type="button">Refresh</button>
   </div>
   <div class="msg" id="msg" role="status"></div>
+  <div class="tabs" role="tablist">
+    <button class="tab" id="tab-projects" role="tab" type="button" aria-selected="true">Projects</button>
+    <button class="tab" id="tab-profiles" role="tab" type="button" aria-selected="false">Profiles</button>
+  </div>
 </header>
 <main>
   <div id="banners"></div>
-  <div class="panel hide" id="newp"><h2>New folders</h2><div id="newlist"></div></div>
-  <div class="tablewrap"><table>
-    <thead><tr id="thead"></tr></thead>
-    <tbody id="tbody"></tbody>
-  </table></div>
-  <p class="sub" id="foot"></p>
+  <section id="view-projects">
+    <div class="panel hide" id="newp"><h2>New folders</h2><div id="newlist"></div></div>
+    <div class="tablewrap"><table>
+      <thead><tr id="thead"></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table></div>
+    <p class="sub" id="foot"></p>
+  </section>
+  <section id="view-profiles" class="hide">
+    <div class="bar"><button class="btn" id="newprof-btn" type="button">New profile</button><span class="sub">Profiles are groups: attach several to a project. Deny lists win over grants.</span></div>
+    <div id="newprof-form"></div>
+    <div class="groups" id="groups"></div>
+  </section>
 </main>
 <script>
 "use strict";
 var BOOT = /*__BOOT__*/null || {token:"",readonly:false,state:null};
-var state = BOOT.state, RO = !!BOOT.readonly, pendingProfile = null;
+var state = BOOT.state, RO = !!BOOT.readonly;
+var tab = location.hash === "#profiles" ? "profiles" : "projects";
+var busy = {};            // key -> label; one request in flight per key
+var menu = null;          // {path, kind, id, naming}
+var pendingEdit = null;   // {name, op, kind, id, affected}
+var expandedOff = {};     // path -> show off connectors
+var showNewForm = false;
 
 function el(tag, cls, text){ var e=document.createElement(tag); if(cls) e.className=cls; if(text!==undefined) e.textContent=text; return e; }
+function btn(label, cls, fn, disabled){
+  var b = el("button", cls, label); b.type="button";
+  if(disabled) b.disabled = true; else b.addEventListener("click", fn);
+  return b;
+}
 function setMsg(t, err){ var m=document.getElementById("msg"); m.textContent=t||""; m.className="msg"+(err?" err":""); }
+function short(id){ return id.split("@")[0]; }
+function anyBusy(){ return Object.keys(busy).length > 0; }
 
 async function api(path, body){
   var opts = body ? {method:"POST",headers:{"Content-Type":"application/json","X-Devconsole-Token":BOOT.token},body:JSON.stringify(body)} : {};
@@ -110,158 +171,409 @@ async function api(path, body){
   return j;
 }
 async function load(fresh){
-  if(RO) return;
-  setMsg(fresh ? "Scanning projects (this can take a minute)..." : "");
-  try{ state = await api("/api/state"+(fresh?"?fresh=1":"")); setMsg(""); render(); }
+  if(RO || busy.refresh) return;
+  busy.refresh = "refresh"; if(fresh){ setMsg("Scanning projects (this can take a minute)..."); render(); }
+  try{ state = await api("/api/state"+(fresh?"?fresh=1":"")); setMsg(""); }
   catch(e){ setMsg("Could not load state: "+e.message, true); }
+  finally{ delete busy.refresh; render(); }
 }
-async function act(path, body, label){
-  setMsg(label+"...");
+// One request chain per key at a time. The clicked controls render disabled while it runs.
+async function act(key, steps, label){
+  if(RO || busy[key]) return;
+  busy[key] = label; menu = null; setMsg(label+"..."); render();
+  var msgs = [], ok = true;
   try{
-    var j = await api(path, body);
-    state = j.state; render();
-    setMsg((j.messages||[]).join("; ") || "Done.", !j.ok);
+    for(var i=0;i<steps.length && ok;i++){
+      var j = await api(steps[i][0], steps[i][1]);
+      msgs = msgs.concat(j.messages||[]); ok = ok && j.ok;
+      if(j.state) state = j.state;
+    }
+    setMsg(msgs.join("; ") || "Done.", !ok);
   }catch(e){ setMsg("Failed: "+e.message, true); }
+  finally{ delete busy[key]; render(); }
 }
-function copy(text, btn){
-  var done=function(){ var o=btn.textContent; btn.textContent="Copied"; setTimeout(function(){btn.textContent=o;},1500); };
-  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done, function(){ setMsg("Copy failed. Command: "+text, true); }); }
-  else setMsg("Clipboard unavailable. Command: "+text, true);
+function attachTo(p, name){ act(p.path, [["/api/attach",{path:p.path,profile:name}]], "Attaching "+name+" to "+p.path); }
+function detachFrom(p, name){ act(p.path, [["/api/detach",{path:p.path,profile:name}]], "Detaching "+name+" from "+p.path); }
+function setInline(p, kind, id, value){ act(p.path, [["/api/inline",{path:p.path,kind:kind,id:id,value:value}]], "Inline "+value+" "+short(id)); }
+
+function grantors(kind, id){
+  return Object.keys(state.profiles||{}).filter(function(n){
+    var pr = state.profiles[n]; return (kind==="plugin"?pr.plugins:pr.connectors).indexOf(id) >= 0;
+  });
+}
+function srcText(s){ return s.map(function(x){ return x==="inline" ? "inline exception" : x; }).join(", "); }
+function tip(kind, id, it, extra){
+  var t = id;
+  var on = kind==="plugin" ? it.desired : !it.desired_off;
+  if(on && it.sources.length) t += "\nfrom " + srcText(it.sources);
+  else if(!on && it.denied_by.length) t += "\ndenied by " + srcText(it.denied_by);
+  else if(!on) t += "\nnot granted by any attached profile";
+  if(extra) t += "\n" + extra;
+  return t;
 }
 
-function short(id){ return id.split("@")[0]; }
-function sw(label, cls, title, onclick){
-  var b = el("button","sw "+cls,label); b.type="button"; b.title=title||"";
-  if(RO || cls.indexOf("missing")>=0) { b.disabled = cls.indexOf("missing")>=0; if(RO) b.classList.add("ro"); if(RO) b.disabled=true; }
-  else b.addEventListener("click", onclick);
+function chipBase(p, kind, id, it, label, cls, title){
+  var b = el("button","sw "+cls); b.type="button"; b.title = title;
+  b.appendChild(document.createTextNode(label));
+  if(it.inline) b.appendChild(el("span","badge","inline"));
+  var dis = RO || !!busy[p.path] || p.status==="gone";
+  if(menu && menu.path===p.path && menu.kind===kind && menu.id===id) b.classList.add("sel");
+  if(dis) b.disabled = true;
+  else b.addEventListener("click", function(){
+    menu = (menu && menu.path===p.path && menu.kind===kind && menu.id===id) ? null : {path:p.path, kind:kind, id:id};
+    render();
+  });
   return b;
+}
+
+function popover(p, kind, id, it){
+  var on = kind==="plugin" ? it.desired : !it.desired_off;
+  var d = el("div","pop"); d.setAttribute("role","menu");
+  var head = el("h3",null,(kind==="plugin"?"Plugin ":"Connector ")+id+": "+(on?"on":"off")+(it.state==="missing"?" (missing)":"")); d.appendChild(head);
+  if(it.state==="missing") d.appendChild(el("div","hint bad", (p.missing_hints||{})[id] || "not installed"));
+  function opts(){ var o = el("div","opts"); d.appendChild(o); return o; }
+  var own = p.attached || [];
+  if(it.inline){
+    d.appendChild(el("div","hint","Inline exception ("+it.inline+"). Flagged because profiles are preferred."));
+    opts().appendChild(btn("Clear inline exception","btn sm", function(){ setInline(p,kind,id,"clear"); }));
+  }
+  if(on){
+    var from = it.sources.filter(function(s){return s!=="inline";});
+    if(from.length){
+      d.appendChild(el("div","hint","Comes from: "+from.join(", ")));
+      var o1 = opts();
+      from.forEach(function(n){
+        if(own.indexOf(n)>=0) o1.appendChild(btn("Detach "+n,"btn sm", function(){ detachFrom(p,n); }));
+        else o1.appendChild(el("span","hint","default: "+n));
+      });
+    }
+    if(!it.inline) opts().appendChild(btn("Inline exception: turn off","btn sm", function(){ setInline(p,kind,id,"off"); }));
+  } else {
+    if(it.denied_by.length) d.appendChild(el("div","hint bad","Denied by: "+srcText(it.denied_by)+". Deny wins over any grant."));
+    var gr = grantors(kind,id).filter(function(n){ return (p.attached||[]).indexOf(n)<0 && (p.defaults||[]).indexOf(n)<0; });
+    if(gr.length){
+      d.appendChild(el("div","hint","Attach a profile that grants it:"));
+      var o2 = opts(); gr.forEach(function(n){ o2.appendChild(btn("+ "+n,"btn sm", function(){ attachTo(p,n); })); });
+    } else if(!it.denied_by.length) d.appendChild(el("div","hint","No unattached profile grants it."));
+    var o3 = opts();
+    if(menu.naming){
+      var inp = el("input"); inp.type="text"; inp.placeholder="new-profile-name"; inp.setAttribute("aria-label","New profile name");
+      o3.appendChild(inp);
+      o3.appendChild(btn("Create and attach","btn sm primary", function(){
+        var name = inp.value.trim();
+        if(!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)){ setMsg("Profile names use letters, digits, . _ - only.", true); return; }
+        act(p.path, [["/api/profile-new",{name:name,description:"",group:""}],
+                     ["/api/profile",{name:name,op:"add",kind:kind,id:id}],
+                     ["/api/attach",{path:p.path,profile:name}]], "Creating profile "+name);
+      }));
+      setTimeout(function(){ inp.focus(); }, 0);
+    } else {
+      o3.appendChild(btn("New profile with this...","btn sm", function(){ menu.naming = true; render(); }));
+    }
+    if(!it.denied_by.length && !it.inline) opts().appendChild(btn("Inline exception: turn on","btn sm", function(){ setInline(p,kind,id,"on"); }));
+  }
+  var cl = opts(); cl.appendChild(btn("Close","btn sm", function(){ menu=null; render(); }));
+  return d;
+}
+
+function profChip(p, name, cls){
+  var info = (state.profiles||{})[name] || {};
+  if(cls==="rec"){
+    var b = el("button","pchip rec","+ "+name); b.type="button"; b.title="Recommended. "+(info.description||"");
+    if(RO || busy[p.path]) b.disabled=true; else b.addEventListener("click", function(){ attachTo(p,name); });
+    return b;
+  }
+  var c = el("span","pchip "+cls); c.appendChild(el("span",null,name));
+  c.title = cls==="default" ? "Default profile, attached to every project. "+(info.description||"") : (cls==="unknown" ? "Unknown profile" : (info.description||""));
+  if(cls!=="default"){
+    var x = el("button","x","×"); x.type="button"; x.setAttribute("aria-label","Detach "+name);
+    if(RO || busy[p.path]) x.disabled=true; else x.addEventListener("click", function(){ detachFrom(p,name); });
+    c.appendChild(x);
+  }
+  return c;
+}
+
+function profileSelect(p){
+  var sel = el("select","add"); sel.setAttribute("aria-label","Attach a profile to "+p.path);
+  var o0 = el("option",null,"+ profile"); o0.value=""; sel.appendChild(o0);
+  var groups = {};
+  Object.keys(state.profiles||{}).forEach(function(n){
+    if(p.attached.indexOf(n)>=0 || p.defaults.indexOf(n)>=0) return;
+    var g = state.profiles[n].group || "other"; (groups[g] = groups[g] || []).push(n);
+  });
+  Object.keys(groups).sort().forEach(function(g){
+    var og = el("optgroup"); og.label = g;
+    groups[g].sort().forEach(function(n){ var o = el("option",null,n); o.value=n; og.appendChild(o); });
+    sel.appendChild(og);
+  });
+  if(RO || busy[p.path]) sel.disabled = true;
+  sel.addEventListener("change", function(){ var v=sel.value; sel.disabled=true; if(v) attachTo(p, v); else sel.disabled=false; });
+  return sel;
 }
 
 function render(){
   if(!state) return;
+  document.getElementById("view-projects").classList.toggle("hide", tab!=="projects");
+  document.getElementById("view-profiles").classList.toggle("hide", tab!=="profiles");
+  ["projects","profiles"].forEach(function(t){ document.getElementById("tab-"+t).setAttribute("aria-selected", String(tab===t)); });
+  ["q","sf"].forEach(function(i){ document.getElementById(i).classList.toggle("hide", tab!=="projects"); });
   var o = state.org;
   document.getElementById("org").textContent = "Logged in to " + (o.name||"unknown org") + (o.id8 ? " ("+o.id8+")" : "") + (RO ? "  |  snapshot " : "  |  updated ") + (state.generated||"").replace("T"," ").slice(0,16);
+  var rb = document.getElementById("refresh"); rb.disabled = !!busy.refresh;
+  rb.textContent = busy.refresh ? "Refreshing..." : "Refresh";
   var chips = document.getElementById("chips"); chips.textContent="";
   ["ok","drift","missing","new","gone","error"].forEach(function(k){
     var n=(state.counts||{})[k]||0; if(!n && k==="error") return;
     chips.appendChild(el("span","chip "+k, n+" "+k));
   });
-  // banners
+  var ninl = state.projects.reduce(function(a,p){ return a + (p.inline_items||[]).length; }, 0);
+  if(ninl) chips.appendChild(el("span","chip inl", ninl+" inline"));
+  renderBanners();
+  if(tab==="projects") renderProjects(); else renderProfiles();
+}
+
+function renderBanners(){
   var bn = document.getElementById("banners"); bn.textContent="";
+  if(tab!=="projects") return;
   if((state.missing||[]).length){
-    var p = el("div","panel"); p.appendChild(el("h2",null,"Missing on this account"));
+    var p = el("details","panel"); p.open = state.missing.length <= 4;
+    p.appendChild(el("summary",null,"Missing on this account ("+state.missing.length+" plugins, click to "+(p.open?"collapse":"expand")+")"));
     var ul = el("ul");
     state.missing.forEach(function(m){
-      ul.appendChild(el("li",null, m.id+" (wanted by "+m.projects.join(", ")+")" + (m.other_orgs.length ? ". Available on org "+m.other_orgs.join(", ")+"." : (/@claude-plugins-official$/.test(m.id) ? ". Not installed yet; Apply on that row installs it." : ". Not synced to any org on this machine."))));
+      var more = m.projects.length>3 ? " +"+(m.projects.length-3)+" more" : "";
+      var li = el("li",null, m.id+": "+m.hint+" (wanted by "+m.projects.slice(0,3).join(", ")+more+")"); li.title = m.projects.join("\n");
+      ul.appendChild(li);
     });
     p.appendChild(ul); bn.appendChild(p);
   }
   if((state.stale||[]).length){
-    var p2 = el("div","panel"); p2.appendChild(el("h2",null,"Stale Claude project entries (folder gone, report only)"));
+    var d = el("details","panel"); d.appendChild(el("summary",null,"Stale Claude project entries ("+state.stale.length+", folder gone, report only)"));
     var u2 = el("ul"); state.stale.forEach(function(s){ var li=el("li"); li.appendChild(el("code",null,s)); u2.appendChild(li); });
-    p2.appendChild(u2); bn.appendChild(p2);
+    d.appendChild(u2); bn.appendChild(d);
   }
-  // new
+}
+
+function renderProjects(){
   var newp = document.getElementById("newp"), nl = document.getElementById("newlist"); nl.textContent="";
   var news = state.projects.filter(function(p){return p.status==="new";});
   newp.classList.toggle("hide", !news.length);
   news.forEach(function(p){
     var r = el("div","newrow"); r.appendChild(el("strong",null,p.path));
+    r.appendChild(profileSelect(p));
     var cmd = 'cd "'+p.abs+'" && claude "/project-setup"';
-    var b = el("button","btn primary","Set up"); b.type="button"; b.addEventListener("click", function(){copy(cmd,b);});
+    var b = btn("Copy /project-setup command","btn sm", function(){ copy(cmd,b); });
     r.appendChild(b); nl.appendChild(r);
   });
-  // table
-  var cols = ["Project","Profile","Status","Plugins","Connectors"]; if(state.has_costs) cols.push("Plugin tokens");
+  var cols = ["Project","Status","Profiles","Plugins","Connectors"]; if(state.has_costs) cols.push("Plugin tokens");
   var th = document.getElementById("thead"); th.textContent="";
   cols.forEach(function(c){ th.appendChild(el("th",null,c)); });
   var q = document.getElementById("q").value.toLowerCase(), sf = document.getElementById("sf").value;
   var tb = document.getElementById("tbody"); tb.textContent="";
   state.projects.forEach(function(p){
     if(sf && p.status!==sf) return;
-    if(q && (p.path+" "+(p.profile||"")).toLowerCase().indexOf(q)<0) return;
-    tb.appendChild(row(p, cols.length));
-    if(pendingProfile && pendingProfile.path===p.path) tb.appendChild(confirmRow(p, cols.length));
+    if(q && (p.path+" "+p.attached.join(" ")).toLowerCase().indexOf(q)<0) return;
+    tb.appendChild(row(p));
   });
-  document.getElementById("foot").textContent = state.projects.length+" projects. Dashed = suggested by profile (click to turn on as an extra). Amber ring = actual state differs from desired; use Apply.";
+  document.getElementById("foot").textContent = state.projects.length+" projects. Click a chip for options. Amber ring = actual differs from desired (Apply). Amber badge = inline exception; prefer a profile. Dashed = recommended profile.";
 }
 
-function row(p, ncols){
+function copy(text, b){
+  var done=function(){ var o=b.textContent; b.textContent="Copied"; setTimeout(function(){b.textContent=o;},1500); };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done, function(){ setMsg("Copy failed. Command: "+text, true); }); }
+  else setMsg("Clipboard unavailable. Command: "+text, true);
+}
+
+function row(p){
   var tr = el("tr");
+  var isBusy = !!busy[p.path];
   var tp = el("td","path",p.path==="." ? "(root)" : p.path); if(p.notes) tp.appendChild(el("small",null,p.notes)); tr.appendChild(tp);
-  var tpf = el("td");
-  if(p.status==="gone"){ tpf.textContent = p.profile||"-"; }
-  else {
-    var sel = el("select"); sel.setAttribute("aria-label","Profile for "+p.path);
-    if(!p.profile){ var o0=el("option","", "(none)"); o0.value=""; sel.appendChild(o0); }
-    state.profiles.forEach(function(n){ var o=el("option",null,n); o.value=n; if(n===p.profile) o.selected=true; sel.appendChild(o); });
-    if(RO) sel.disabled=true;
-    sel.addEventListener("change", function(){ if(!sel.value){ sel.value=p.profile||""; return; } pendingProfile={path:p.path,profile:sel.value}; render(); });
-    tpf.appendChild(sel);
-  }
-  tr.appendChild(tpf);
+  // status
   var ts = el("td"); ts.appendChild(el("span","chip "+p.status,p.status));
-  if(!RO && (p.status==="drift"||p.status==="missing")){
-    var ab = el("button","btn","Apply"); ab.type="button"; ab.style.marginLeft="6px"; ab.title=(p.drift||[]).join("\n");
-    ab.addEventListener("click", function(){ act("/api/apply",{path:p.path},"Applying "+p.path); });
+  if(p.error) ts.appendChild(el("div","sub",p.error));
+  if((p.inline_items||[]).length) ts.appendChild(el("div","sub",p.inline_items.length+" inline"));
+  var installable = (p.missing||[]).some(function(i){ return /@claude-plugins-official$/.test(i); });
+  if(!RO && !isBusy && ((p.drift||[]).length || installable) && p.status!=="error"){
+    var ab = btn("Apply","btn sm", function(){ act(p.path, [["/api/apply",{path:p.path}]], "Applying "+p.path); });
+    ab.style.marginLeft="6px"; ab.title=(p.drift||[]).concat((p.missing||[]).map(function(i){return "missing "+i;})).join("\n");
     ts.appendChild(ab);
   }
+  if(isBusy){ var w = el("div","working"); w.appendChild(el("span","spin")); w.appendChild(document.createTextNode(busy[p.path]+"...")); ts.appendChild(w); }
   tr.appendChild(ts);
+  // profiles
+  var tpf = el("td"), pc = el("div","pchips");
+  p.defaults.forEach(function(n){ pc.appendChild(profChip(p,n,"default")); });
+  p.attached.forEach(function(n){ pc.appendChild(profChip(p,n,(state.profiles||{})[n] ? "attached" : "unknown")); });
+  if(p.status!=="gone"){
+    (p.recommended||[]).forEach(function(n){ pc.appendChild(profChip(p,n,"rec")); });
+    pc.appendChild(profileSelect(p));
+  }
+  tpf.appendChild(pc); tr.appendChild(tpf);
   // plugins
-  var tpl = el("td"), box = el("div","sws"); var shown={};
-  var offx = (p.extras&&p.extras.plugins_off)||[];
+  var tpl = el("td"), box = el("div","sws"), shown = {};
   p.plugins.forEach(function(x){
-    if(x.state==="off" && offx.indexOf(x.id)<0) return;
-    shown[x.id]=1;
-    var cls, title = x.id;
-    if(x.state==="missing"){ cls="missing"; title+=" is not available on this account"; }
-    else if(x.state==="suggested"){ cls="suggested"; title+=" (suggested by profile)"; }
-    else if(x.desired){ cls="on"; if(x.state==="needs-on"){ cls+=" drift"; title+=" (wanted on, currently off)"; } }
-    else { cls="off"; if(x.state==="needs-off"){ cls+=" drift"; title+=" (wanted off, currently on)"; } }
-    box.appendChild(sw(short(x.id), cls, title, function(){
-      var turnOn = !x.desired;
-      act("/api/set",{path:p.path,kind:"plugin",id:x.id,value:turnOn?"on":"off"},(turnOn?"Enabling ":"Disabling ")+short(x.id));
-    }));
+    if(x.state==="off" && !x.inline && !x.denied_by.length) return;
+    shown[x.id] = 1;
+    var cls, extra = "";
+    if(x.state==="missing"){ cls="missing"; extra=(p.missing_hints||{})[x.id]||"not installed"; }
+    else if(x.desired){ cls="on"; if(x.state==="needs-on"){ cls+=" drift"; extra="wanted on, currently off"; } }
+    else { cls="off"; if(x.state==="needs-off"){ cls+=" drift"; extra="wanted off, currently on"; } }
+    if(x.inline) cls += " inl";
+    box.appendChild(chipBase(p,"plugin",x.id,x,short(x.id),cls,tip("plugin",x.id,x,extra)));
   });
-  if(!RO && p.status!=="gone" && p.status!=="new"){
-    var add = el("select","add"); add.setAttribute("aria-label","Add plugin to "+p.path);
-    var o1=el("option",null,"+"); o1.value=""; add.appendChild(o1);
-    (state.known_plugins||[]).filter(function(id){return !shown[id];}).forEach(function(id){ var o=el("option",null,id); o.value=id; add.appendChild(o); });
-    add.addEventListener("change", function(){ if(add.value) act("/api/set",{path:p.path,kind:"plugin",id:add.value,value:"on"},"Enabling "+short(add.value)); });
+  if(!RO && p.status!=="gone"){
+    var add = el("select","add"); add.setAttribute("aria-label","Plugin options for "+p.path);
+    var o1 = el("option",null,"+ plugin"); o1.value=""; add.appendChild(o1);
+    (state.known_plugins||[]).filter(function(id){return !shown[id];}).forEach(function(id){ var o=el("option",null,short(id)); o.value=id; o.title=id; add.appendChild(o); });
+    if(isBusy) add.disabled = true;
+    add.addEventListener("change", function(){ if(add.value){ menu={path:p.path,kind:"plugin",id:add.value}; render(); } });
     box.appendChild(add);
   }
-  tpl.appendChild(box); tr.appendChild(tpl);
+  tpl.appendChild(box);
+  if(menu && menu.path===p.path && menu.kind==="plugin"){
+    var it = p.plugins.filter(function(x){return x.id===menu.id;})[0] ||
+             {id:menu.id,desired:false,enabled:false,state:"off",sources:[],denied_by:[],inline:null};
+    tpl.appendChild(popover(p,"plugin",menu.id,it));
+  }
+  tr.appendChild(tpl);
   // connectors
-  var tc = el("td"), cb = el("div","sws");
+  var tc = el("td"), cb = el("div","sws"), nOff = 0;
+  var showOff = !!expandedOff[p.path];
   p.connectors.forEach(function(c){
-    var off = c.desired_off;
-    var cls = "conn "+(off?"off":"on")+((c.desired_off!==c.actual_off)?" drift":"");
-    cb.appendChild(sw(c.name, cls, c.name+(c.available?"":" (not connected on this account)")+(off?": off":": on"), function(){
-      act("/api/set",{path:p.path,kind:"connector",id:c.name,value:off?"on":"off"},(off?"Enabling ":"Disabling ")+c.name);
-    }));
+    var off = c.desired_off, st = c.desired_off!==c.actual_off;
+    var vis = !off || st || c.inline || c.denied_by.length || showOff || (menu && menu.path===p.path && menu.id===c.name);
+    if(!vis){ nOff++; return; }
+    var cls = "conn "+(off?"off":"on")+(st?" drift":"")+(c.inline?" inl":"");
+    cb.appendChild(chipBase(p,"connector",c.name,c,c.name,cls,tip("connector",c.name,c,(c.available?"":"(not connected on this account)")+(st?" wanted "+(off?"off":"on")+", currently "+(off?"on":"off"):""))));
   });
-  tc.appendChild(cb); tr.appendChild(tc);
+  if(nOff || showOff){
+    var tg = el("button","btn sm", showOff ? "hide off" : "+"+nOff+" off"); tg.type="button";
+    tg.title = "Connectors no attached profile grants";
+    tg.addEventListener("click", function(){ expandedOff[p.path] = !expandedOff[p.path]; render(); });
+    cb.appendChild(tg);
+  }
+  tc.appendChild(cb);
+  if(menu && menu.path===p.path && menu.kind==="connector"){
+    var ci = p.connectors.filter(function(x){return x.name===menu.id;})[0];
+    if(ci) tc.appendChild(popover(p,"connector",menu.id,ci));
+  }
+  tr.appendChild(tc);
   if(state.has_costs) tr.appendChild(el("td","mono", p.cost==null?"":String(p.cost)));
   return tr;
 }
 
-function confirmRow(p, n){
-  var tr = el("tr","confirm"), td = el("td"); td.colSpan = n;
-  td.appendChild(document.createTextNode("Apply profile "+pendingProfile.profile+" to "+p.path+"? "));
-  var y = el("button","btn primary","Yes"); y.type="button";
-  y.addEventListener("click", function(){ var pp=pendingProfile; pendingProfile=null; act("/api/apply",{path:pp.path,profile:pp.profile},"Applying profile "+pp.profile); });
-  var c = el("button","btn","Cancel"); c.type="button"; c.style.marginLeft="6px";
-  c.addEventListener("click", function(){ pendingProfile=null; render(); });
-  td.appendChild(y); td.appendChild(c); tr.appendChild(td); return tr;
+// ------------------------------------------------------------ profiles tab
+function startEdit(name, op, kind, id){
+  if(RO || busy["profile:"+name]) return;
+  busy["profile:"+name] = "Checking"; render();
+  api("/api/profile", {name:name,op:op,kind:kind,id:id,dry_run:true}).then(function(j){
+    pendingEdit = {name:name,op:op,kind:kind,id:id,affected:j.affected||[],msgs:j.messages||[],ok:j.ok};
+    if(!j.ok) setMsg((j.messages||[]).join("; "), true);
+  }).catch(function(e){ setMsg("Failed: "+e.message, true); })
+    .then(function(){ delete busy["profile:"+name]; render(); });
+}
+function confirmBlock(pe){
+  var b = el("div","confirmbox");
+  var n = pe.affected.length;
+  b.appendChild(document.createTextNode((pe.op==="add"?"Add ":"Remove ")+pe.kind+" "+pe.id+". Affects "+n+" project"+(n===1?"":"s")+(n?": ":".")));
+  pe.affected.forEach(function(a, i){
+    b.appendChild(document.createTextNode((i?"; ":"")+(a.path==="."?"(root)":a.path)+" ("+(a.changes.length ? a.changes.join(", ") : (a.note||"no change"))+")"));
+  });
+  var r = el("div","row");
+  var key = "profile:"+pe.name, working = !!busy[key];
+  r.appendChild(btn(working?"Applying...":"Apply","btn sm primary", function(){
+    var e = pendingEdit; pendingEdit = null;
+    act(key, [["/api/profile",{name:e.name,op:e.op,kind:e.kind,id:e.id}]], "Updating "+e.name);
+  }, working || !pe.ok));
+  r.appendChild(btn("Cancel","btn sm", function(){ pendingEdit=null; render(); }, working));
+  if(working){ var w=el("span","working"); w.appendChild(el("span","spin")); r.appendChild(w); }
+  b.appendChild(r);
+  return b;
+}
+function renderProfiles(){
+  var nf = document.getElementById("newprof-form"); nf.textContent="";
+  document.getElementById("newprof-btn").disabled = RO;
+  if(showNewForm && !RO){
+    var f = el("div","panel"); f.appendChild(el("h2",null,"New profile"));
+    var name = el("input"); name.type="text"; name.placeholder="name"; name.setAttribute("aria-label","Profile name");
+    var grp = el("input"); grp.type="text"; grp.placeholder="group (code, business...)"; grp.setAttribute("aria-label","Group");
+    var desc = el("input"); desc.type="text"; desc.placeholder="description"; desc.setAttribute("aria-label","Description"); desc.style.minWidth="220px";
+    var row1 = el("div","newrow"); [name,grp,desc].forEach(function(i){ row1.appendChild(i); });
+    var go = btn("Create","btn sm primary", function(){
+      var n = name.value.trim();
+      if(!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(n)){ setMsg("Profile names use letters, digits, . _ - only.", true); return; }
+      showNewForm = false;
+      act("new-profile", [["/api/profile-new",{name:n,group:grp.value.trim(),description:desc.value.trim()}]], "Creating "+n);
+    }, !!busy["new-profile"]);
+    row1.appendChild(go); row1.appendChild(btn("Cancel","btn sm", function(){ showNewForm=false; render(); }));
+    f.appendChild(row1); nf.appendChild(f);
+  }
+  var g = document.getElementById("groups"); g.textContent="";
+  var groups = {};
+  Object.keys(state.profiles||{}).forEach(function(n){
+    var k = state.profiles[n].group || "ungrouped"; (groups[k] = groups[k] || []).push(n);
+  });
+  Object.keys(groups).sort(function(a,b){ return a==="default"?-1 : b==="default"?1 : a<b?-1:1; }).forEach(function(k){
+    var sec = el("div","grp"); sec.appendChild(el("h2",null,k));
+    var cards = el("div","cards");
+    groups[k].sort().forEach(function(n){ cards.appendChild(card(n, state.profiles[n])); });
+    sec.appendChild(cards); g.appendChild(sec);
+  });
+}
+function card(name, pr){
+  var c = el("div","card");
+  var h = el("h3",null,name); if(pr.default) h.appendChild(el("span","tag","default")); c.appendChild(h);
+  c.appendChild(el("div","desc",pr.description||"(no description)"));
+  var key = "profile:"+name, dis = RO || !!busy[key] || !!pendingEdit && pendingEdit.name===name;
+  function listing(title, kind, items, denies){
+    c.appendChild(el("h4",null,title));
+    var l = el("div","list");
+    if(!items.length) l.appendChild(el("span","sub","none"));
+    items.forEach(function(id){
+      var it = el("span","item"); it.appendChild(document.createTextNode(kind==="plugin"?short(id):id)); it.title = id;
+      var x = el("button","x","×"); x.type="button"; x.setAttribute("aria-label","Remove "+id+" from "+name);
+      if(dis) x.disabled = true; else x.addEventListener("click", function(){ startEdit(name,"remove",kind,id); });
+      it.appendChild(x); l.appendChild(it);
+    });
+    (denies||[]).forEach(function(id){ var d = el("span","item","deny: "+(kind==="plugin"?short(id):id)); d.title="Explicit deny wins over grants from other profiles. Edit profiles.json to change."; l.appendChild(d); });
+    var opts = kind==="plugin" ? (state.known_plugins||[]) : (state.available_connectors||[]);
+    var sel = el("select","add"); sel.setAttribute("aria-label","Add "+kind+" to "+name);
+    var o0 = el("option",null,"+ "+kind); o0.value=""; sel.appendChild(o0);
+    opts.filter(function(id){ return items.indexOf(id)<0; }).forEach(function(id){ var o=el("option",null,kind==="plugin"?short(id):id); o.value=id; o.title=id; sel.appendChild(o); });
+    if(dis) sel.disabled = true;
+    sel.addEventListener("change", function(){ if(sel.value){ var v=sel.value; sel.disabled=true; startEdit(name,"add",kind,v); } });
+    l.appendChild(sel); c.appendChild(l);
+  }
+  listing("Plugins","plugin",pr.plugins,pr.deny_plugins);
+  listing("Connectors","connector",pr.connectors,pr.deny_connectors);
+  c.appendChild(el("h4",null, pr.default ? "Attached to every project" : "Attached projects ("+pr.projects.length+")"));
+  var pj = el("div","projs");
+  if(!pr.default){
+    if(!pr.projects.length) pj.appendChild(el("span","sub","none"));
+    pr.projects.forEach(function(path){
+      var a = el("a",null,path==="."?"(root)":path); a.setAttribute("role","link"); a.tabIndex=0;
+      function go(){ document.getElementById("q").value = path==="." ? "" : path; document.getElementById("sf").value=""; setTab("projects"); }
+      a.addEventListener("click", go); a.addEventListener("keydown", function(e){ if(e.key==="Enter") go(); });
+      pj.appendChild(a);
+    });
+  }
+  c.appendChild(pj);
+  if(pendingEdit && pendingEdit.name===name) c.appendChild(confirmBlock(pendingEdit));
+  else if(busy[key]){ var w = el("div","working"); w.appendChild(el("span","spin")); w.appendChild(document.createTextNode(busy[key]+"...")); c.appendChild(w); }
+  return c;
 }
 
+function setTab(t){ tab = t; try{ history.replaceState(null,"", t==="profiles" ? "#profiles" : location.pathname+location.search); }catch(e){} render(); }
+document.getElementById("tab-projects").addEventListener("click", function(){ setTab("projects"); });
+document.getElementById("tab-profiles").addEventListener("click", function(){ setTab("profiles"); });
+document.getElementById("newprof-btn").addEventListener("click", function(){ showNewForm = !showNewForm; render(); });
+window.addEventListener("hashchange", function(){ tab = location.hash==="#profiles" ? "profiles" : "projects"; render(); });
 document.getElementById("q").addEventListener("input", render);
 document.getElementById("sf").addEventListener("change", render);
 document.getElementById("refresh").addEventListener("click", function(){ load(true); });
 if(RO){ document.getElementById("refresh").classList.add("hide"); render(); }
 else {
   load(false);
-  setInterval(function(){ if(document.visibilityState==="visible" && !pendingProfile) load(false); }, 30000);
+  setInterval(function(){ if(document.visibilityState==="visible" && !anyBusy() && !menu && !pendingEdit && !showNewForm) load(false); }, 30000);
 }
 </script>
 </body>

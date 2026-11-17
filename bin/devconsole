@@ -2,7 +2,7 @@
 # devconsole launcher: open the console, starting the server in the background if needed.
 #   devconsole          open (start if not running)
 #   devconsole stop     stop the background server
-#   devconsole <cmd>    pass through to devconsole.py (scan, check, apply, set, snapshot)
+#   devconsole <cmd>    pass through to devconsole.py (scan, check, apply, attach, detach, profile, inline, snapshot)
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PORT="${DEVCONSOLE_PORT:-8765}"
 URL="http://127.0.0.1:$PORT/"
