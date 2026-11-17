@@ -303,7 +303,11 @@ def _visible(name):
     return not name.startswith(".") and not name.startswith("_") and name not in SKIP_DIRS
 
 
-def discover(cfg):
+def discover(cfg, assigned=()):
+    """Root, visible top-level dirs, and second-level dirs that look like their own
+    project (.git or .claude). Under a top-level dir that already has a profile, only
+    second-level dirs with their own .claude/ count; a nested repo inherits its parent."""
+    assigned = set(assigned)
     out = ["."]
     try:
         tops = sorted(os.listdir(cfg.root))
@@ -322,7 +326,9 @@ def discover(cfg):
             sp = os.path.join(p, s)
             if not _visible(s) or os.path.islink(sp) or not os.path.isdir(sp):
                 continue
-            if os.path.exists(os.path.join(sp, ".git")) or os.path.exists(os.path.join(sp, ".claude")):
+            has_claude = os.path.exists(os.path.join(sp, ".claude"))
+            has_git = os.path.exists(os.path.join(sp, ".git"))
+            if has_claude or (has_git and n not in assigned):
                 out.append(n + "/" + s)
     return out
 
@@ -428,7 +434,7 @@ def scan(cfg, fresh=False):
     cj = load_claude_json()
     cache = load_cache(cfg)
     now = time.time()
-    rels = _uniq(discover(cfg) + list(projects.keys()))
+    rels = _uniq(discover(cfg, projects.keys()) + list(projects.keys()))
     live = [r for r in rels if os.path.isdir(abs_of(cfg, r))]
 
     def need(r):
@@ -700,6 +706,8 @@ def check_path(path, hook=False):
     if rel is None:
         return
     profiles, _ = load_profiles(cfg)
+    if key is None and rel != "." and not _visible(rel.split(os.sep)[0]):
+        return  # hidden/underscore folders (_archive, .git, node_modules…) are never "new"
     if key is None:
         msg = ("devconsole: this folder (%s) has no plugin profile, so every claude.ai connector is on "
                "and no project plugins are set. Offer the user /project-setup." % rel)

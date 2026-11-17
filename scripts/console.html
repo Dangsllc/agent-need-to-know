@@ -22,12 +22,15 @@
   }
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+html,body{overflow-x:hidden}
+body{margin:0;background:var(--bg);overflow-wrap:anywhere;color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
 header,main{padding:0 16px;max-width:1500px;margin:0 auto}
 header{padding-top:16px}
 h1{font-size:18px;margin:0 0 2px}
 .sub{color:var(--muted);font-size:12.5px}
 .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+.bar input[type=search]{flex:1 1 160px;min-width:0}
+@media (max-width:600px){.spacer{display:none}}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid transparent}
 .chip.ok{color:var(--ok);background:var(--ok-bg)} .chip.drift{color:var(--warn);background:var(--warn-bg)}
@@ -149,7 +152,7 @@ function render(){
     var p = el("div","panel"); p.appendChild(el("h2",null,"Missing on this account"));
     var ul = el("ul");
     state.missing.forEach(function(m){
-      ul.appendChild(el("li",null, m.id+" (wanted by "+m.projects.join(", ")+")" + (m.other_orgs.length ? ". Available on org "+m.other_orgs.join(", ")+"." : ". Not synced to any org on this machine.")));
+      ul.appendChild(el("li",null, m.id+" (wanted by "+m.projects.join(", ")+")" + (m.other_orgs.length ? ". Available on org "+m.other_orgs.join(", ")+"." : (/@claude-plugins-official$/.test(m.id) ? ". Not installed yet; Apply on that row installs it." : ". Not synced to any org on this machine."))));
     });
     p.appendChild(ul); bn.appendChild(p);
   }
@@ -185,7 +188,7 @@ function render(){
 
 function row(p, ncols){
   var tr = el("tr");
-  var tp = el("td","path",p.path); if(p.notes) tp.appendChild(el("small",null,p.notes)); tr.appendChild(tp);
+  var tp = el("td","path",p.path==="." ? "(root)" : p.path); if(p.notes) tp.appendChild(el("small",null,p.notes)); tr.appendChild(tp);
   var tpf = el("td");
   if(p.status==="gone"){ tpf.textContent = p.profile||"-"; }
   else {
