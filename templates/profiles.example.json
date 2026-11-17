@@ -1,5 +1,6 @@
 {
   "_about": "Profiles are groups; projects are users. A project gets capability only from the profiles attached to it in projects.json, plus every profile in 'default_profiles'. Allowed = union of those profiles' plugins and connectors. 'deny_plugins' / 'deny_connectors' always win over any grant. Connectors are denied by default: a claude.ai connector no attached profile grants is turned off (names are written without the 'claude.ai ' prefix). Keep profiles small and single-purpose so they compose.",
+  "schema_version": 2,
   "default_profiles": ["baseline"],
   "plugin_accounts": {
     "_about": "Optional notes on where each plugin comes from; the page offers these ids when you add a plugin to a profile.",

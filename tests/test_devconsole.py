@@ -11,7 +11,8 @@ import time
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
-import devconsole as dc  # noqa: E402
+from devconsole_pkg import config, engine, lifecycle, model, server  # noqa: E402
+from devconsole_pkg.adapters import claude_code as cc  # noqa: E402
 
 
 def jdump(obj, path):
@@ -47,7 +48,7 @@ AVAIL = ["Docs", "Slack", "Gmail", "Stripe"]
 
 def P(profiles=None, defaults=("base",)):
     """Normalized profiles via the real loader shape."""
-    return {n: dc._norm_profile(profiles or PROFILES["profiles"], n)
+    return {n: model._norm_profile(profiles or PROFILES["profiles"], n)
             for n in (profiles or PROFILES["profiles"]) if not n.startswith("_")}, list(defaults)
 
 
@@ -76,12 +77,12 @@ class Env(unittest.TestCase):
                            "DEVCONSOLE_USER_SETTINGS": os.path.join(t, "user-settings.json"),
                            "DEVCONSOLE_CLAUDE_HOME": os.path.join(t, "home")})
         # never shell out to the real claude CLI
-        self._orig = (dc.fetch_plugin_list, dc.fetch_connectors, dc.run)
+        self._orig = (cc.fetch_plugin_list, cc.fetch_connectors, cc.run)
         self.cmds = []
         self.lists = {}
-        dc.fetch_plugin_list = lambda p: self.lists.get(p, [])
-        dc.fetch_connectors = lambda root: list(AVAIL)
-        dc.run = self._fake_run
+        cc.fetch_plugin_list = lambda p: self.lists.get(p, [])
+        cc.fetch_connectors = lambda root: list(AVAIL)
+        cc.run = self._fake_run
         self.write_cache(AVAIL)
 
     def _fake_run(self, cmd, cwd, timeout=60):
@@ -98,7 +99,7 @@ class Env(unittest.TestCase):
         jdump(c, os.path.join(self.data, ".devconsole-cache.json"))
 
     def tearDown(self):
-        dc.fetch_plugin_list, dc.fetch_connectors, dc.run = self._orig
+        cc.fetch_plugin_list, cc.fetch_connectors, cc.run = self._orig
         os.environ.clear()
         os.environ.update(self.saved)
         self.tmp.cleanup()
@@ -106,7 +107,7 @@ class Env(unittest.TestCase):
     def check(self, path):
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            dc.check_path(path, hook=True)
+            engine.check_path(path, hook=True)
         return buf.getvalue()
 
     def projects(self):
@@ -119,7 +120,7 @@ class Env(unittest.TestCase):
 class TestResolve(unittest.TestCase):
     def test_union_of_profiles_and_defaults(self):
         profs, d = P()
-        r = dc.resolve(profs, d, {"profiles": ["py", "ts"]}, AVAIL)
+        r = model.resolve(profs, d, {"profiles": ["py", "ts"]}, AVAIL)
         self.assertEqual(sorted(r["plugins"]), ["a@x", "b@x"])
         self.assertEqual(sorted(r["connectors_on"]), ["Docs", "Slack"])  # Docs from default
         self.assertEqual(r["sources"]["plugin"]["a@x"], ["py"])
@@ -128,13 +129,13 @@ class TestResolve(unittest.TestCase):
 
     def test_sources_list_every_granting_profile(self):
         profs = {"x": {"plugins": ["p"], "connectors": []}, "y": {"plugins": ["p"], "connectors": []}}
-        profs = {n: dc._norm_profile(profs, n) for n in profs}
-        r = dc.resolve(profs, [], {"profiles": ["x", "y"]})
+        profs = {n: model._norm_profile(profs, n) for n in profs}
+        r = model.resolve(profs, [], {"profiles": ["x", "y"]})
         self.assertEqual(r["sources"]["plugin"]["p"], ["x", "y"])
 
     def test_profile_deny_wins_over_allow(self):
         profs, d = P()
-        r = dc.resolve(profs, d, {"profiles": ["ts", "sec"]}, AVAIL)
+        r = model.resolve(profs, d, {"profiles": ["ts", "sec"]}, AVAIL)
         self.assertNotIn("b@x", r["plugins"])
         self.assertIn("c@x", r["plugins"])
         self.assertEqual(r["denied_by"]["plugin"]["b@x"], ["sec"])
@@ -145,7 +146,7 @@ class TestResolve(unittest.TestCase):
         profs, d = P()
         e = {"profiles": ["py"], "inline": {"plugins_on": ["z@x"], "plugins_off": ["a@x"],
                                             "connectors_on": ["claude.ai Gmail"], "connectors_off": ["Docs"]}}
-        r = dc.resolve(profs, d, e, AVAIL)
+        r = model.resolve(profs, d, e, AVAIL)
         self.assertEqual(r["plugins"], ["z@x"])
         self.assertEqual(r["sources"]["plugin"]["z@x"], ["inline"])
         self.assertEqual(r["denied_by"]["plugin"]["a@x"], ["inline"])
@@ -155,25 +156,25 @@ class TestResolve(unittest.TestCase):
     def test_inline_items_reported(self):
         profs, d = P()
         e = {"profiles": [], "inline": {"plugins_on": ["z@x"], "connectors_off": ["Docs"]}}
-        r = dc.resolve(profs, d, e, AVAIL)
+        r = model.resolve(profs, d, e, AVAIL)
         self.assertEqual(r["inline_items"], [{"kind": "plugin", "id": "z@x", "value": "on"},
                                              {"kind": "connector", "id": "Docs", "value": "off"}])
 
     def test_implicit_connector_deny(self):
         profs, d = P()
-        r = dc.resolve(profs, d, {"profiles": ["py"]}, AVAIL + ["NewConnector"])
+        r = model.resolve(profs, d, {"profiles": ["py"]}, AVAIL + ["NewConnector"])
         self.assertEqual(r["connectors_on"], ["Docs"])
         self.assertEqual(r["connectors_off"], ["Slack", "Gmail", "Stripe", "NewConnector"])
 
     def test_default_profiles_applied_with_no_entry(self):
         profs, d = P()
-        r = dc.resolve(profs, d, None, AVAIL)
+        r = model.resolve(profs, d, None, AVAIL)
         self.assertEqual(r["connectors_on"], ["Docs"])
         self.assertEqual(r["attached"], ["base"])
 
     def test_unknown_profile_reported_not_raised(self):
         profs, d = P()
-        r = dc.resolve(profs, d, {"profiles": ["py", "nope"]}, AVAIL)
+        r = model.resolve(profs, d, {"profiles": ["py", "nope"]}, AVAIL)
         self.assertEqual(r["unknown"], ["nope"])
         self.assertEqual(r["plugins"], ["a@x"])
 
@@ -188,20 +189,20 @@ class TestCompat(Env):
         jdump({"projects": {"app": {"profile": "kid", "plugins_on": ["z@x"], "plugins_off": ["a@x"],
                                     "connectors_on": ["claude.ai Alpha"], "connectors_off": ["Delta"]}}},
               os.path.join(self.data, "projects.json"))
-        cfg = dc.load_config()
-        profs, meta = dc.load_profiles(cfg)
+        cfg = config.load_config()
+        profs, meta = model.load_profiles(cfg)
         self.assertEqual(profs["kid"]["plugins"], ["a@x", "b@x"])  # extends flattened
         self.assertEqual(profs["kid"]["connectors"], ["Beta"])      # connectors_off ignored
         self.assertNotIn("suggested", profs["mid"])
         self.assertEqual(meta["default_profiles"], [])
-        e = dc.load_projects(cfg)["projects"]["app"]
+        e = model.load_projects(cfg)["projects"]["app"]
         self.assertEqual(e["profiles"], ["kid"])
         self.assertEqual(e["inline"], {"plugins_on": ["z@x"], "plugins_off": ["a@x"],
                                        "connectors_on": ["Alpha"], "connectors_off": ["Delta"]})
-        r = dc.resolve(profs, [], e, ["Alpha", "Beta", "Delta"])
+        r = model.resolve(profs, [], e, ["Alpha", "Beta", "Delta"])
         self.assertEqual(r["plugins"], ["b@x", "z@x"])
         # writes are v2
-        dc.save_projects(cfg, dc.load_projects(cfg))
+        model.save_projects(cfg, model.load_projects(cfg))
         w = jload(os.path.join(self.data, "projects.json"))["projects"]["app"]
         self.assertEqual(w["profiles"], ["kid"])
         self.assertNotIn("profile", w)
@@ -209,25 +210,25 @@ class TestCompat(Env):
         self.assertIn("inline", w)
 
     def test_underscore_keys_ignored(self):
-        cfg = dc.load_config()
-        self.assertNotIn("_about", dc.load_projects(cfg)["projects"])
-        profs, meta = dc.load_profiles(cfg)
+        cfg = config.load_config()
+        self.assertNotIn("_about", model.load_projects(cfg)["projects"])
+        profs, meta = model.load_profiles(cfg)
         self.assertNotIn("_note", profs)
         self.assertNotIn("_about", meta["plugin_accounts"])
 
 
 class TestEvaluate(Env):
     def row(self, rel="app", plugin_list=None, entry=None):
-        cfg = dc.load_config()
-        profs, meta = dc.load_profiles(cfg)
-        e = entry if entry is not None else dc.load_projects(cfg)["projects"].get(rel)
-        return dc.evaluate(cfg, rel, e, profs, meta["default_profiles"], {}, plugin_list, AVAIL, None)
+        cfg = config.load_config()
+        profs, meta = model.load_profiles(cfg)
+        e = entry if entry is not None else model.load_projects(cfg)["projects"].get(rel)
+        return engine.evaluate(cfg, rel, e, profs, meta["default_profiles"], {}, plugin_list, AVAIL, None)
 
     def test_status_new_gone_error_missing_drift_ok(self):
         self.assertEqual(self.row("newone", [], entry=None)["status"], "new")
         self.assertEqual(self.row("zzz", [], entry=None)["status"], "gone")
         self.assertEqual(self.row("app", None)["status"], "error")
-        bad = dc.norm_entry({"profiles": ["nope"]})
+        bad = model.norm_entry({"profiles": ["nope"]})
         r = self.row("app", [], entry=bad)
         self.assertEqual(r["status"], "error")
         self.assertIn("nope", r["error"])
@@ -240,12 +241,12 @@ class TestEvaluate(Env):
         self.assertTrue(all("connector" in d for d in r["drift"]))
 
     def test_inline_does_not_change_status_but_is_flagged(self):
-        e = dc.norm_entry({"profiles": [], "inline": {"plugins_on": ["z@x"]}})
+        e = model.norm_entry({"profiles": [], "inline": {"plugins_on": ["z@x"]}})
         pl = [{"id": "z@x", "enabled": True}]
-        cfg = dc.load_config()
-        profs, meta = dc.load_profiles(cfg)
+        cfg = config.load_config()
+        profs, meta = model.load_profiles(cfg)
         cj = {"projects": {os.path.join(self.root, "other"): {"disabledMcpServers": ["claude.ai Slack", "claude.ai Gmail", "claude.ai Stripe"]}}}
-        r = dc.evaluate(cfg, "other", e, profs, meta["default_profiles"], cj, pl, AVAIL, None)
+        r = engine.evaluate(cfg, "other", e, profs, meta["default_profiles"], cj, pl, AVAIL, None)
         self.assertEqual(r["status"], "ok")
         self.assertEqual(r["inline_items"], [{"kind": "plugin", "id": "z@x", "value": "on"}])
         self.assertEqual(r["plugins"][0]["inline"], "on")
@@ -258,20 +259,20 @@ class TestEvaluate(Env):
     def test_missing_hints(self):
         oi = {"orgs": [{"id8": "aaaa1111", "current": False, "plugins": ["eng"]},
                        {"id8": "bbbb2222", "current": True, "plugins": []}]}
-        self.assertIn("Apply installs it", dc.missing_hint("p@claude-plugins-official", oi))
-        h = dc.missing_hint("eng@synced", oi)
+        self.assertIn("Apply installs it", cc.missing_hint("p@claude-plugins-official", oi))
+        h = cc.missing_hint("eng@synced", oi)
         self.assertIn("add eng to this claude.ai account", h)
         self.assertIn("aaaa1111", h)
-        self.assertEqual(dc.missing_hint("zzz@synced", oi), "not synced to any claude.ai account here")
-        self.assertEqual(dc.missing_hint("q@local", oi), "not installed — Apply installs it")  # any marketplace installs
+        self.assertEqual(cc.missing_hint("zzz@synced", oi), "not synced to any claude.ai account here")
+        self.assertEqual(cc.missing_hint("q@local", oi), "not installed — Apply installs it")  # any marketplace installs
 
     def test_no_connector_drift_when_list_unknown(self):
-        cfg = dc.load_config()
-        profs, meta = dc.load_profiles(cfg)
+        cfg = config.load_config()
+        profs, meta = model.load_profiles(cfg)
         cj = {"projects": {os.path.join(self.root, "app"): {"disabledMcpServers": ["claude.ai Whatever"]}}}
-        e = dc.load_projects(cfg)["projects"]["app"]
+        e = model.load_projects(cfg)["projects"]["app"]
         pl = [{"id": "a@x", "enabled": True}, {"id": "b@x", "enabled": True}]
-        r = dc.evaluate(cfg, "app", e, profs, meta["default_profiles"], cj, pl, [], None)
+        r = engine.evaluate(cfg, "app", e, profs, meta["default_profiles"], cj, pl, [], None)
         self.assertEqual(r["status"], "ok")
 
 
@@ -344,7 +345,7 @@ class TestClaudeJsonWrite(Env):
         with open(self.cj, "w") as f:
             f.write(json.dumps(orig, indent=4) + "\n")
         os.chmod(self.cj, 0o600)
-        self.assertTrue(dc.write_disabled_servers(app, ["Alpha", "Gamma"]))
+        self.assertTrue(cc.write_disabled_servers(app, ["Alpha", "Gamma"]))
         text = slurp(self.cj)
         self.assertTrue(text.startswith('{\n    "numStartups"'))
         self.assertTrue(text.endswith("\n"))
@@ -354,12 +355,12 @@ class TestClaudeJsonWrite(Env):
         self.assertEqual(d["projects"][app]["allowedTools"], ["x"])
         self.assertEqual(d["projects"][app]["disabledMcpServers"], ["plugin:thing", "claude.ai Alpha", "claude.ai Gamma"])
         self.assertEqual(os.stat(self.cj).st_mode & 0o777, 0o600)
-        self.assertFalse(dc.write_disabled_servers(app, ["Alpha", "Gamma"]))  # no-op
+        self.assertFalse(cc.write_disabled_servers(app, ["Alpha", "Gamma"]))  # no-op
         self.assertEqual([f for f in os.listdir(self.t) if f.startswith(".dc-tmp-")], [])
 
     def test_creates_project_entry(self):
         jdump({"projects": {}, "x": 1}, self.cj)
-        dc.write_disabled_servers(os.path.join(self.root, "newone"), ["Alpha"])
+        cc.write_disabled_servers(os.path.join(self.root, "newone"), ["Alpha"])
         d = jload(self.cj)
         self.assertEqual(d["x"], 1)
         self.assertEqual(d["projects"][os.path.join(self.root, "newone")], {"disabledMcpServers": ["claude.ai Alpha"]})
@@ -370,29 +371,29 @@ class TestEdits(Env):
 
     def setUp(self):
         super().setUp()
-        self.cfg = dc.load_config()
+        self.cfg = config.load_config()
         self.out = []
 
     def test_attach_creates_entry_and_detach_removes(self):
-        self.assertEqual(dc.do_attach(self.cfg, "newone", "py", out=self.out.append, apply=False), 0)
+        self.assertEqual(engine.do_attach(self.cfg, "newone", "py", out=self.out.append, apply=False), 0)
         self.assertEqual(self.projects()["newone"], {"profiles": ["py"]})
-        self.assertEqual(dc.do_attach(self.cfg, "newone", "py", out=self.out.append, apply=False), 0)  # idempotent
+        self.assertEqual(engine.do_attach(self.cfg, "newone", "py", out=self.out.append, apply=False), 0)  # idempotent
         self.assertEqual(self.projects()["newone"]["profiles"], ["py"])
-        self.assertEqual(dc.do_attach(self.cfg, "newone", "py", out=self.out.append, apply=False, attach=False), 0)
+        self.assertEqual(engine.do_attach(self.cfg, "newone", "py", out=self.out.append, apply=False, attach=False), 0)
         self.assertEqual(self.projects()["newone"], {"profiles": []})
-        self.assertNotEqual(dc.do_attach(self.cfg, "newone", "nope", out=self.out.append, apply=False), 0)
+        self.assertNotEqual(engine.do_attach(self.cfg, "newone", "nope", out=self.out.append, apply=False), 0)
         self.assertEqual(self.cmds, [])
         self.assertIn("newone\tprofile:py", slurp(self.cfg.log_path))
 
     def test_attach_preserves_top_level_and_notes(self):
-        dc.do_attach(self.cfg, "app", "sec", out=self.out.append, apply=False)
+        engine.do_attach(self.cfg, "app", "sec", out=self.out.append, apply=False)
         raw = jload(os.path.join(self.data, "projects.json"))
         self.assertEqual(raw["_about"], "c")
         self.assertEqual(raw["projects"]["app"]["profiles"], ["py", "ts", "sec"])
         self.assertEqual(raw["projects"]["app"]["notes"], "n")
 
     def test_detach_default_profile_explained(self):
-        rc = dc.do_attach(self.cfg, "app", "base", out=self.out.append, apply=False, attach=False)
+        rc = engine.do_attach(self.cfg, "app", "base", out=self.out.append, apply=False, attach=False)
         self.assertEqual(rc, 2)
         self.assertIn("default", self.out[-1])
 
@@ -400,7 +401,7 @@ class TestEdits(Env):
         d = self.projects()
         d["app"]["recommended"] = ["sec", "py"]
         jdump({"projects": d}, os.path.join(self.data, "projects.json"))
-        dc.do_attach(self.cfg, "app", "sec", out=self.out.append, apply=False)
+        engine.do_attach(self.cfg, "app", "sec", out=self.out.append, apply=False)
         self.assertEqual(self.projects()["app"]["recommended"], ["py"])
 
     def test_attach_then_apply_runs_plugin_command(self):
@@ -411,14 +412,14 @@ class TestEdits(Env):
         pf = jload(os.path.join(self.data, "profiles.json"))
         pf["profiles"]["py"]["plugins"] = ["a@claude-plugins-official"]
         jdump(pf, os.path.join(self.data, "profiles.json"))
-        dc.do_attach(self.cfg, "newone", "py", out=self.out.append)
+        engine.do_attach(self.cfg, "newone", "py", out=self.out.append)
         self.assertIn((["claude", "plugin", "install", "a@claude-plugins-official", "--scope", "local"],
                        os.path.join(self.root, "newone")), self.cmds)
 
     def test_profile_add_remove_plugin_and_connector(self):
-        rc, _ = dc.profile_edit(self.cfg, "py", "add", "plugin", "n@x", apply=False, out=self.out.append)
+        rc, _ = engine.profile_edit(self.cfg, "py", "add", "plugin", "n@x", apply=False, out=self.out.append)
         self.assertEqual(rc, 0)
-        rc, _ = dc.profile_edit(self.cfg, "py", "add", "connector", "claude.ai Gmail", apply=False, out=self.out.append)
+        rc, _ = engine.profile_edit(self.cfg, "py", "add", "connector", "claude.ai Gmail", apply=False, out=self.out.append)
         p = self.profiles()["py"]
         self.assertEqual(p["plugins"], ["a@x", "n@x"])
         self.assertEqual(p["connectors"], ["Gmail"])
@@ -427,16 +428,16 @@ class TestEdits(Env):
         self.assertEqual(raw["default_profiles"], ["base"])
         self.assertEqual(raw["_about"], "comment")
         self.assertEqual(raw["plugin_accounts"]["a@x"], "any")
-        dc.profile_edit(self.cfg, "py", "remove", "plugin", "a@x", apply=False, out=self.out.append)
+        engine.profile_edit(self.cfg, "py", "remove", "plugin", "a@x", apply=False, out=self.out.append)
         self.assertEqual(self.profiles()["py"]["plugins"], ["n@x"])
-        rc, _ = dc.profile_edit(self.cfg, "py", "remove", "plugin", "nope", apply=False, out=self.out.append)
+        rc, _ = engine.profile_edit(self.cfg, "py", "remove", "plugin", "nope", apply=False, out=self.out.append)
         self.assertEqual(rc, 2)
-        rc, _ = dc.profile_edit(self.cfg, "zzz", "add", "plugin", "q", apply=False, out=self.out.append)
+        rc, _ = engine.profile_edit(self.cfg, "zzz", "add", "plugin", "q", apply=False, out=self.out.append)
         self.assertEqual(rc, 2)
 
     def test_profile_dry_run_writes_nothing_and_lists_affected(self):
         before = slurp(os.path.join(self.data, "profiles.json"))
-        rc, aff = dc.profile_edit(self.cfg, "py", "add", "connector", "Gmail", dry=True, out=self.out.append)
+        rc, aff = engine.profile_edit(self.cfg, "py", "add", "connector", "Gmail", dry=True, out=self.out.append)
         self.assertEqual(rc, 0)
         self.assertEqual(slurp(os.path.join(self.data, "profiles.json")), before)
         self.assertEqual([a["path"] for a in aff], ["app"])
@@ -445,13 +446,13 @@ class TestEdits(Env):
         self.assertEqual(self.cmds, [])
 
     def test_default_profile_edit_affects_all_projects(self):
-        rc, aff = dc.profile_edit(self.cfg, "base", "add", "connector", "Gmail", dry=True, out=self.out.append)
+        rc, aff = engine.profile_edit(self.cfg, "base", "add", "connector", "Gmail", dry=True, out=self.out.append)
         self.assertEqual(sorted(a["path"] for a in aff), ["app", "other"])
 
     def test_profile_edit_applies_to_attached_projects_only(self):
         self.lists[os.path.join(self.root, "app")] = [{"id": "a@x", "enabled": True}, {"id": "b@x", "enabled": True},
                                                       {"id": "n@claude-plugins-official", "enabled": False}]
-        dc.profile_edit(self.cfg, "py", "add", "plugin", "n@claude-plugins-official", out=self.out.append)
+        engine.profile_edit(self.cfg, "py", "add", "plugin", "n@claude-plugins-official", out=self.out.append)
         cmds = [c for c, cwd in self.cmds]
         self.assertIn(["claude", "plugin", "enable", "n@claude-plugins-official", "--scope", "local"], cmds)
         self.assertTrue(all(cwd == os.path.join(self.root, "app") for c, cwd in self.cmds))
@@ -460,58 +461,58 @@ class TestEdits(Env):
         d = self.projects()
         d["other"] = {"profiles": [], "inline": {"plugins_on": ["z@x"], "connectors_on": ["Gmail"], "plugins_off": ["q@x"]}}
         jdump({"projects": d}, os.path.join(self.data, "projects.json"))
-        rc = dc.profile_new(self.cfg, "extra", "desc", "grp", from_project="other", out=self.out.append)
+        rc = engine.profile_new(self.cfg, "extra", "desc", "grp", from_project="other", out=self.out.append)
         self.assertEqual(rc, 0)
         p = self.profiles()["extra"]
         self.assertEqual((p["plugins"], p["connectors"], p["group"], p["description"]), (["z@x"], ["Gmail"], "grp", "desc"))
         o = self.projects()["other"]
         self.assertEqual(o["profiles"], ["extra"])
         self.assertEqual(o["inline"], {"plugins_off": ["q@x"]})
-        self.assertNotEqual(dc.profile_new(self.cfg, "extra", out=self.out.append), 0)  # exists
-        self.assertNotEqual(dc.profile_new(self.cfg, "bad name!", out=self.out.append), 0)
+        self.assertNotEqual(engine.profile_new(self.cfg, "extra", out=self.out.append), 0)  # exists
+        self.assertNotEqual(engine.profile_new(self.cfg, "bad name!", out=self.out.append), 0)
 
     def test_profile_new_empty(self):
-        self.assertEqual(dc.profile_new(self.cfg, "docs", "d", "", out=self.out.append), 0)
+        self.assertEqual(engine.profile_new(self.cfg, "docs", "d", "", out=self.out.append), 0)
         self.assertEqual(self.profiles()["docs"]["plugins"], [])
 
     def test_profile_delete_refuses_when_attached(self):
-        rc = dc.profile_delete(self.cfg, "py", out=self.out.append)
+        rc = engine.profile_delete(self.cfg, "py", out=self.out.append)
         self.assertEqual(rc, 2)
         self.assertIn("app", self.out[-1])
         self.assertIn("py", self.profiles())
-        self.assertEqual(dc.profile_delete(self.cfg, "base", out=self.out.append), 2)  # default
-        dc.do_attach(self.cfg, "app", "py", out=self.out.append, apply=False, attach=False)
-        self.assertEqual(dc.profile_delete(self.cfg, "py", out=self.out.append), 0)
+        self.assertEqual(engine.profile_delete(self.cfg, "base", out=self.out.append), 2)  # default
+        engine.do_attach(self.cfg, "app", "py", out=self.out.append, apply=False, attach=False)
+        self.assertEqual(engine.profile_delete(self.cfg, "py", out=self.out.append), 0)
         self.assertNotIn("py", self.profiles())
 
     def test_inline_set_and_clear(self):
         out = self.out.append
-        dc.do_inline(self.cfg, "app", "plugin", "z@x", "on", out=out, apply=False)
+        engine.do_inline(self.cfg, "app", "plugin", "z@x", "on", out=out, apply=False)
         self.assertEqual(self.projects()["app"]["inline"], {"plugins_on": ["z@x"]})
-        dc.do_inline(self.cfg, "app", "plugin", "z@x", "off", out=out, apply=False)  # not granted: no exception needed
+        engine.do_inline(self.cfg, "app", "plugin", "z@x", "off", out=out, apply=False)  # not granted: no exception needed
         self.assertNotIn("inline", self.projects()["app"])
-        dc.do_inline(self.cfg, "app", "plugin", "a@x", "off", out=out, apply=False)
+        engine.do_inline(self.cfg, "app", "plugin", "a@x", "off", out=out, apply=False)
         self.assertEqual(self.projects()["app"]["inline"], {"plugins_off": ["a@x"]})
-        dc.do_inline(self.cfg, "app", "plugin", "a@x", "clear", out=out, apply=False)
+        engine.do_inline(self.cfg, "app", "plugin", "a@x", "clear", out=out, apply=False)
         self.assertNotIn("inline", self.projects()["app"])
-        dc.do_inline(self.cfg, "app", "connector", "claude.ai Gmail", "on", out=out, apply=False)
+        engine.do_inline(self.cfg, "app", "connector", "claude.ai Gmail", "on", out=out, apply=False)
         self.assertEqual(self.projects()["app"]["inline"], {"connectors_on": ["Gmail"]})
-        dc.do_inline(self.cfg, "app", "connector", "Slack", "off", out=out, apply=False)
+        engine.do_inline(self.cfg, "app", "connector", "Slack", "off", out=out, apply=False)
         self.assertEqual(self.projects()["app"]["inline"], {"connectors_on": ["Gmail"], "connectors_off": ["Slack"]})
-        dc.do_inline(self.cfg, "app", "plugin", "a@x", "on", out=out, apply=False)  # already on via py
+        engine.do_inline(self.cfg, "app", "plugin", "a@x", "on", out=out, apply=False)  # already on via py
         self.assertNotIn("plugins_on", self.projects()["app"]["inline"])
 
     def test_inline_on_refused_when_profile_denies(self):
         d = self.projects()
         d["app"]["profiles"] = ["sec"]
         jdump({"projects": d}, os.path.join(self.data, "projects.json"))
-        rc = dc.do_inline(self.cfg, "app", "plugin", "b@x", "on", out=self.out.append, apply=False)
+        rc = engine.do_inline(self.cfg, "app", "plugin", "b@x", "on", out=self.out.append, apply=False)
         self.assertEqual(rc, 2)
         self.assertIn("denied by sec", self.out[-1])
         self.assertNotIn("inline", self.projects()["app"])
 
     def test_inline_needs_entry(self):
-        self.assertEqual(dc.do_inline(self.cfg, "newone", "plugin", "z@x", "on", out=self.out.append, apply=False), 2)
+        self.assertEqual(engine.do_inline(self.cfg, "newone", "plugin", "z@x", "on", out=self.out.append, apply=False), 2)
 
 
 class TestApplyAll(Env):
@@ -520,7 +521,7 @@ class TestApplyAll(Env):
         self.lists[os.path.join(self.root, "other")] = []
         out = []
         cj_before = slurp(self.cj)
-        rc = dc.apply_all(dc.load_config(), dry=True, out=out.append)
+        rc = engine.apply_all(config.load_config(), dry=True, out=out.append)
         self.assertEqual(rc, 0)
         self.assertEqual(out[0], "(dry run: nothing will be changed)")
         app = [l for l in out if l.startswith("app: ")][0]
@@ -537,7 +538,7 @@ class TestApplyAll(Env):
         self.lists[os.path.join(self.root, "app")] = [{"id": "a@x", "enabled": True}, {"id": "b@x", "enabled": True}]
         self.lists[os.path.join(self.root, "other")] = None  # plugin list fails
         out = []
-        rc = dc.apply_all(dc.load_config(), out=out.append)
+        rc = engine.apply_all(config.load_config(), out=out.append)
         self.assertEqual(rc, 1)
         self.assertTrue(any(l.startswith("other: FAILED") for l in out))
         self.assertTrue(any(l.startswith("failure: other") for l in out))
@@ -552,7 +553,7 @@ class TestApplyAll(Env):
         d["app"]["profiles"].append("ghost")
         jdump({"projects": d}, os.path.join(self.data, "projects.json"))
         out = []
-        rc = dc.apply_all(dc.load_config(), dry=True, out=out.append)
+        rc = engine.apply_all(config.load_config(), dry=True, out=out.append)
         self.assertEqual(rc, 1)
         self.assertTrue(any("unknown profile" in l for l in out))
 
@@ -561,7 +562,7 @@ class TestServer(Env):
     def setUp(self):
         super().setUp()
         self.token = "tok"
-        self.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), dc.make_handler(dc.load_config(), self.token))
+        self.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), server.make_handler(config.load_config(), self.token))
         self.port = self.srv.server_address[1]
         threading.Thread(target=self.srv.serve_forever, daemon=True).start()
 
@@ -628,7 +629,7 @@ class TestServer(Env):
 class TestCapabilities(Env):
     def setUp(self):
         super().setUp()
-        self.cfg = dc.load_config()
+        self.cfg = config.load_config()
         self.out = []
         self.capf = os.path.join(self.data, "capabilities.json")
         self.app = os.path.join(self.root, "app")
@@ -650,7 +651,7 @@ class TestCapabilities(Env):
 
     def test_first_run_seeds_everything_active(self):
         self.assertFalse(os.path.exists(self.capf))
-        dc.scan(self.cfg, fresh=True)
+        engine.scan(self.cfg, fresh=True)
         st = self.statuses()
         self.assertEqual(set(st.values()), {"active"})
         for i in ("a@x", "b@x", "Gmail", "Docs", "c@x"):  # seen plugins, connectors, profile refs
@@ -659,49 +660,49 @@ class TestCapabilities(Env):
         self.assertEqual(self.caps()["Gmail"]["kind"], "connector")
 
     def test_new_detected_after_seed_and_gone(self):
-        dc.scan(self.cfg, fresh=True)
+        engine.scan(self.cfg, fresh=True)
         self.lists[self.app].append({"id": "n@x", "enabled": False})
-        st = dc.scan(self.cfg, fresh=True)
+        st = engine.scan(self.cfg, fresh=True)
         self.assertEqual(self.statuses()["n@x"], "new")
         self.assertEqual(st["inbox"]["new"], ["n@x"])
         # b@x disappears everywhere
         self.lists[self.app] = [{"id": "a@x", "enabled": True}]
-        st = dc.scan(self.cfg, fresh=True)
+        st = engine.scan(self.cfg, fresh=True)
         self.assertEqual(self.statuses()["b@x"], "gone")
         self.assertIn("b@x", st["inbox"]["gone"])
         self.assertEqual(self.statuses()["c@x"], "active")  # never seen: not gone
         self.assertTrue(self.caps()["b@x"]["last_seen"])
         # comes back
         self.lists[self.app].append({"id": "b@x", "enabled": True})
-        dc.scan(self.cfg, fresh=True)
+        engine.scan(self.cfg, fresh=True)
         self.assertEqual(self.statuses()["b@x"], "active")
 
     def test_org_availability_keeps_item_not_gone(self):
         self.manifest("orga1111", ["eng"], desc="Engineering skills")
         self.lists[self.app].append({"id": "eng@synced", "enabled": True})
-        dc.scan(self.cfg, fresh=True)
+        engine.scan(self.cfg, fresh=True)
         self.lists[self.app] = [{"id": "a@x", "enabled": True}]
-        dc.scan(self.cfg, fresh=True)
+        engine.scan(self.cfg, fresh=True)
         self.assertEqual(self.statuses()["eng@synced"], "active")
         self.assertEqual(self.caps()["eng@synced"]["seen_on_orgs"], ["orga1111"])
 
     def test_incomplete_scan_never_marks_gone(self):
-        dc.scan(self.cfg, fresh=True)
-        dc.fetch_connectors = lambda root: []
+        engine.scan(self.cfg, fresh=True)
+        cc.fetch_connectors = lambda root: []
         self.write_cache(None)
         self.lists[self.app] = []
-        dc.scan(self.cfg, fresh=True)
+        engine.scan(self.cfg, fresh=True)
         self.assertNotIn("gone", self.statuses().values())
 
     def test_inbox_output(self):
         self.manifest("orga1111", ["eng"], desc="Engineering skills")
-        dc.scan(self.cfg, fresh=True)
+        engine.scan(self.cfg, fresh=True)
         self.manifest("orga1111", ["eng", "newone"], desc="Shiny")
-        dc.scan(self.cfg, fresh=True)
+        engine.scan(self.cfg, fresh=True)
         self.lists[self.app] = [{"id": "a@x", "enabled": True}]
-        dc.scan(self.cfg, fresh=True)
+        engine.scan(self.cfg, fresh=True)
         out = []
-        dc.show_inbox(self.cfg, out=out.append)
+        lifecycle.show_inbox(self.cfg, out=out.append)
         text = "\n".join(out)
         self.assertIn("New (1)", text)
         self.assertIn("newone@synced", text)
@@ -712,32 +713,32 @@ class TestCapabilities(Env):
         self.assertIn("ts", text)  # profile still referencing the gone item
 
     def test_ignore(self):
-        dc.scan(self.cfg, fresh=True)
+        engine.scan(self.cfg, fresh=True)
         self.lists[self.app].append({"id": "n@x", "enabled": False})
-        dc.scan(self.cfg, fresh=True)
-        dc.capability_ignore(self.cfg, "n@x", out=self.out.append)
+        engine.scan(self.cfg, fresh=True)
+        lifecycle.capability_ignore(self.cfg, "n@x", out=self.out.append)
         self.assertEqual(self.statuses()["n@x"], "ignored")
-        self.assertEqual(dc.scan(self.cfg, fresh=True)["inbox"]["new"], [])
+        self.assertEqual(engine.scan(self.cfg, fresh=True)["inbox"]["new"], [])
         self.assertEqual(self.statuses()["n@x"], "ignored")
 
     def test_adopt_writes_profiles_and_dry_run_shape(self):
-        dc.scan(self.cfg, fresh=True)
+        engine.scan(self.cfg, fresh=True)
         self.lists[self.app].append({"id": "n@x", "enabled": False})
-        dc.scan(self.cfg, fresh=True)
+        engine.scan(self.cfg, fresh=True)
         before = slurp(os.path.join(self.data, "profiles.json"))
-        rc, aff, profs = dc.capability_adopt(self.cfg, "n@x", ["py", "base"], dry=True, out=self.out.append)
+        rc, aff, profs = lifecycle.capability_adopt(self.cfg, "n@x", ["py", "base"], dry=True, out=self.out.append)
         self.assertEqual(rc, 0)
         self.assertEqual(profs, ["py", "base"])
         self.assertEqual(sorted(a["path"] for a in aff), ["app", "other"])  # base is a default: all projects
         self.assertEqual(slurp(os.path.join(self.data, "profiles.json")), before)
         self.assertEqual(self.statuses()["n@x"], "new")
-        rc, _, _ = dc.capability_adopt(self.cfg, "n@x", ["py"], apply=False, out=self.out.append)
+        rc, _, _ = lifecycle.capability_adopt(self.cfg, "n@x", ["py"], apply=False, out=self.out.append)
         self.assertEqual(self.profiles()["py"]["plugins"], ["a@x", "n@x"])
         self.assertEqual(self.statuses()["n@x"], "active")
-        self.assertEqual(dc.capability_adopt(self.cfg, "n@x", ["nope"], out=self.out.append)[0], 2)
+        self.assertEqual(lifecycle.capability_adopt(self.cfg, "n@x", ["nope"], out=self.out.append)[0], 2)
 
     def test_adopt_connector_global(self):
-        dc.capability_adopt(self.cfg, "Gmail", ["base"], apply=False, out=self.out.append)
+        lifecycle.capability_adopt(self.cfg, "Gmail", ["base"], apply=False, out=self.out.append)
         self.assertIn("Gmail", self.profiles()["base"]["connectors"])
 
     def test_retire_removes_everywhere_and_stays_retired(self):
@@ -747,18 +748,18 @@ class TestCapabilities(Env):
         d = self.projects()
         d["other"]["inline"] = {"plugins_on": ["a@x"], "plugins_off": ["a@x"]}
         jdump({"projects": d}, os.path.join(self.data, "projects.json"))
-        dc.scan(self.cfg, fresh=True)
-        rc, aff, hit = dc.capability_retire(self.cfg, "a@x", dry=True, out=self.out.append)
+        engine.scan(self.cfg, fresh=True)
+        rc, aff, hit = lifecycle.capability_retire(self.cfg, "a@x", dry=True, out=self.out.append)
         self.assertEqual(sorted(hit), ["py", "sec"])
         self.assertEqual(sorted(a["path"] for a in aff), ["app", "other"])
         self.assertIn("a@x", self.profiles()["py"]["plugins"])  # dry run wrote nothing
-        dc.capability_retire(self.cfg, "a@x", apply=False, out=self.out.append)
+        lifecycle.capability_retire(self.cfg, "a@x", apply=False, out=self.out.append)
         for n, p in self.profiles().items():
             self.assertNotIn("a@x", p["plugins"])
         self.assertNotIn("inline", self.projects()["other"])
         self.assertEqual(self.statuses()["a@x"], "retired")
         # still installed and listed: stays retired, shows under scan -v data
-        st = dc.scan(self.cfg, fresh=True)
+        st = engine.scan(self.cfg, fresh=True)
         self.assertEqual(self.statuses()["a@x"], "retired")
         self.assertEqual(st["inbox"], {"new": [], "gone": []})
         row = [c for c in st["capabilities"] if c["id"] == "a@x"][0]
@@ -766,20 +767,20 @@ class TestCapabilities(Env):
 
     def test_retire_applies_to_affected(self):
         self.lists[self.app] = [{"id": "a@x", "enabled": True}, {"id": "b@x", "enabled": True}]
-        dc.scan(self.cfg, fresh=True)
-        dc.capability_retire(self.cfg, "a@x", out=self.out.append)
+        engine.scan(self.cfg, fresh=True)
+        lifecycle.capability_retire(self.cfg, "a@x", out=self.out.append)
         self.assertIn((["claude", "plugin", "disable", "a@x", "--scope", "local"], self.app), self.cmds)
 
     def test_list_filters(self):
-        dc.scan(self.cfg, fresh=True)
+        engine.scan(self.cfg, fresh=True)
         out = []
-        dc.list_caps(self.cfg, "retired", out=out.append)
+        lifecycle.list_caps(self.cfg, "retired", out=out.append)
         self.assertEqual(out, [])
-        dc.list_caps(self.cfg, "active", out=out.append)
+        lifecycle.list_caps(self.cfg, "active", out=out.append)
         self.assertTrue(any(l.endswith("Gmail") for l in out))
 
     def test_hook_hint_once_per_day_and_file_only(self):
-        dc.scan(self.cfg, fresh=True)
+        engine.scan(self.cfg, fresh=True)
         self.assertEqual(self.check(os.path.join(self.root, "newone")).count("capabilit"), 0)
         d = jload(self.capf)
         d["capabilities"]["zz@x"] = {"kind": "plugin", "status": "new", "first_seen": "t", "last_seen": "t",
@@ -807,41 +808,41 @@ class TestCapabilities(Env):
 class TestDenyAndDefaults(Env):
     def setUp(self):
         super().setUp()
-        self.cfg = dc.load_config()
+        self.cfg = config.load_config()
         self.out = []
 
     def test_deny_undeny_and_extra_keys_kept(self):
         pf = jload(os.path.join(self.data, "profiles.json"))
         pf["profiles"]["py"]["_about"] = "keep me"
         jdump(pf, os.path.join(self.data, "profiles.json"))
-        dc.profile_edit(self.cfg, "py", "deny", "plugin", "q@x", apply=False, out=self.out.append)
-        dc.profile_edit(self.cfg, "py", "deny", "connector", "claude.ai Gmail", apply=False, out=self.out.append)
+        engine.profile_edit(self.cfg, "py", "deny", "plugin", "q@x", apply=False, out=self.out.append)
+        engine.profile_edit(self.cfg, "py", "deny", "connector", "claude.ai Gmail", apply=False, out=self.out.append)
         p = self.profiles()["py"]
         self.assertEqual((p["deny_plugins"], p["deny_connectors"], p["_about"]), (["q@x"], ["Gmail"], "keep me"))
-        self.assertEqual(dc.profile_edit(self.cfg, "py", "deny", "plugin", "q@x", apply=False, out=self.out.append)[0], 0)
-        dc.profile_edit(self.cfg, "py", "undeny", "plugin", "q@x", apply=False, out=self.out.append)
+        self.assertEqual(engine.profile_edit(self.cfg, "py", "deny", "plugin", "q@x", apply=False, out=self.out.append)[0], 0)
+        engine.profile_edit(self.cfg, "py", "undeny", "plugin", "q@x", apply=False, out=self.out.append)
         self.assertNotIn("deny_plugins", self.profiles()["py"])
-        self.assertEqual(dc.profile_edit(self.cfg, "py", "undeny", "plugin", "q@x", apply=False, out=self.out.append)[0], 2)
+        self.assertEqual(engine.profile_edit(self.cfg, "py", "undeny", "plugin", "q@x", apply=False, out=self.out.append)[0], 2)
 
     def test_profile_default_add_remove_dry(self):
         path = os.path.join(self.data, "profiles.json")
         before = slurp(path)
-        rc, aff = dc.profile_default(self.cfg, "add", "py", dry=True, out=self.out.append)
+        rc, aff = engine.profile_default(self.cfg, "add", "py", dry=True, out=self.out.append)
         self.assertEqual((rc, sorted(a["path"] for a in aff)), (0, ["app", "other"]))
         self.assertEqual(slurp(path), before)
-        dc.profile_default(self.cfg, "add", "py", apply=False, out=self.out.append)
+        engine.profile_default(self.cfg, "add", "py", apply=False, out=self.out.append)
         self.assertEqual(jload(path)["default_profiles"], ["base", "py"])
-        dc.profile_default(self.cfg, "remove", "base", apply=False, out=self.out.append)
+        engine.profile_default(self.cfg, "remove", "base", apply=False, out=self.out.append)
         self.assertEqual(jload(path)["default_profiles"], ["py"])
-        self.assertEqual(dc.profile_default(self.cfg, "remove", "base", apply=False, out=self.out.append)[0], 2)
-        self.assertEqual(dc.profile_default(self.cfg, "add", "zzz", apply=False, out=self.out.append)[0], 2)
+        self.assertEqual(engine.profile_default(self.cfg, "remove", "base", apply=False, out=self.out.append)[0], 2)
+        self.assertEqual(engine.profile_default(self.cfg, "add", "zzz", apply=False, out=self.out.append)[0], 2)
 
 
 class TestCapabilityApi(Env):
     def setUp(self):
         super().setUp()
         self.token = "tok"
-        self.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), dc.make_handler(dc.load_config(), self.token))
+        self.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), server.make_handler(config.load_config(), self.token))
         threading.Thread(target=self.srv.serve_forever, daemon=True).start()
 
     def tearDown(self):

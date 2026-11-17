@@ -102,6 +102,7 @@ td.path small{display:block;color:var(--muted);font-weight:400;max-width:220px;w
 .item{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--line);background:var(--sw-off);border-radius:999px;padding:0 4px 0 9px;font-size:12px;line-height:20px}
 .item .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0 3px}
 .item .x:hover{color:var(--bad)}
+.item.foreign{opacity:.55;border-style:dashed;font-style:italic}
 .card .projs{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 12px}
 .card .projs a{color:var(--accent);cursor:pointer;font-size:12.5px;line-height:1.4;padding:2px 9px;border:1px solid var(--line);border-radius:999px;text-decoration:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card .projs a:hover,.card .projs a:focus-visible{background:var(--hover);text-decoration:underline}
@@ -175,6 +176,7 @@ var capEdit = null;       // dry-run result for adopt/retire, awaiting confirm
 var busy = {};            // key -> label; one request in flight per key
 var menu = null;          // {path, kind, id, naming}
 var pendingEdit = null;   // {name, op, kind, id, affected}
+var FOREIGN = /^[a-z0-9-]+:/;  // ids for another tool (`codex:mcp:github`): shown greyed, never enforced
 var expandedOff = {};     // path -> show off connectors
 var showNewForm = false;
 
@@ -369,6 +371,7 @@ function render(){
 
 function renderBanners(){
   var bn = document.getElementById("banners"); bn.textContent="";
+  (state.warnings||[]).forEach(function(w){ var d = el("div","panel",w); d.setAttribute("role","alert"); bn.appendChild(d); });
   if(tab!=="projects") return;
   if((state.missing||[]).length){
     var p = el("details","panel"); p.open = state.missing.length <= 4;
@@ -464,6 +467,10 @@ function row(p){
     box.appendChild(add);
   }
   tpl.appendChild(box);
+  (p.foreign||[]).forEach(function(f){
+    var fs = el("span","item foreign",f.id+" (not supported yet)"); fs.title = f.id+": for another tool, not supported yet. From "+f.sources.join(", ");
+    tpl.appendChild(fs);
+  });
   if(menu && menu.path===p.path && menu.kind==="plugin"){
     var it = p.plugins.filter(function(x){return x.id===menu.id;})[0] ||
              {id:menu.id,desired:false,enabled:false,state:"off",sources:[],denied_by:[],inline:null};
@@ -576,6 +583,7 @@ function card(name, pr){
     if(!items.length) l.appendChild(el("span","sub","none"));
     items.forEach(function(id){
       var it = el("span","item"); it.appendChild(document.createTextNode(kind==="plugin"?short(id):id)); it.title = id;
+      if(FOREIGN.test(id)){ it.className += " foreign"; it.title = id+" (for another tool: not supported yet)"; it.appendChild(document.createTextNode(" (not supported yet)")); }
       var x = el("button","x","×"); x.type="button"; x.setAttribute("aria-label","Remove "+id+" from "+name);
       if(dis) x.disabled = true; else x.addEventListener("click", function(){ startEdit(name,"remove",kind,id); });
       it.appendChild(x); l.appendChild(it);
