@@ -1,27 +1,5 @@
 {
-  "_about": "Which profiles each project has. Keys are paths relative to the root ('.' is the root itself). 'profiles' lists the attached profiles (default_profiles apply on top). 'recommended' profiles show as suggestions by /ntk. 'inline' holds one-off exceptions (plugins_on, plugins_off, connectors_on, connectors_off); they are flagged by /ntk, so prefer a profile.",
+  "_about": "Which profiles each project has. Keys are paths relative to the root ('.' is the root itself). Example entry: \"my-api\": {\"profiles\": [\"lang-python\", \"secure-code\"], \"notes\": \"Handles sensitive data.\"}. 'recommended' lists profiles to suggest; 'inline' holds one-off exceptions (plugins_on, plugins_off, connectors_on, connectors_off), which /ntk flags, so prefer a profile. /project-setup adds entries for you.",
   "schema_version": 2,
-  "projects": {
-    "my-api": {
-      "profiles": [
-        "lang-python",
-        "secure-code"
-      ],
-      "notes": "Handles sensitive data."
-    },
-    "my-web-app": {
-      "profiles": [
-        "lang-typescript",
-        "frontend-design"
-      ],
-      "recommended": [
-        "secure-code"
-      ],
-      "inline": {
-        "plugins_on": [
-          "pyright-lsp@claude-plugins-official"
-        ]
-      }
-    }
-  }
+  "projects": {}
 }

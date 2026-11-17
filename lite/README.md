@@ -18,6 +18,7 @@ This is the **directory edition**. It contains instructions only: two skills and
 2. Run `/project-setup init`. Claude asks where your projects live and where to keep your profiles, then copies in starter profiles.
 3. In any project, run `/project-setup`. Claude looks at the folder, asks a few questions and proposes a set of profiles.
 4. Use `/ntk` any time: `/ntk` shows what the current project loads, `/ntk attach <profile>`, `/ntk apply`, `/ntk all`, `/ntk new`.
+   If another plugin also defines `/ntk`, use the full form, `/agent-need-to-know:ntk`.
 
 Changes take effect in the next session started in that folder.
 
