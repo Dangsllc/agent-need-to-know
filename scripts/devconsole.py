@@ -487,9 +487,16 @@ def find_project_key(cfg, projects, path):
 
 
 # --------------------------------------------------------------- evaluate
+def installable(pid):
+    """Marketplace plugins (official, the Anthropic plugin directory, any added
+    marketplace) install per project. Synced plugins come only from a claude.ai
+    account, so they can't be installed from here."""
+    return "@" in pid and not pid.endswith("@synced")
+
+
 def missing_hint(pid, oi):
     nm = pid.split("@")[0]
-    if pid.endswith("@claude-plugins-official"):
+    if installable(pid):
         return "not installed — Apply installs it"
     if pid.endswith("@synced"):
         have = [o["id8"] for o in (oi or {}).get("orgs", []) if not o["current"] and nm in o["plugins"]]
@@ -678,7 +685,7 @@ def plan_for(row, only=None):
             continue
         i = p["id"]
         if p["state"] == "missing":
-            if i.endswith("@claude-plugins-official"):
+            if installable(i):
                 acts.append({"kind": "plugin", "item": i, "old": "absent", "new": "installed+on",
                              "cmd": ["claude", "plugin", "install", i, "--scope", "local"]})
             else:

@@ -263,7 +263,7 @@ class TestEvaluate(Env):
         self.assertIn("add eng to this claude.ai account", h)
         self.assertIn("aaaa1111", h)
         self.assertEqual(dc.missing_hint("zzz@synced", oi), "not synced to any claude.ai account here")
-        self.assertEqual(dc.missing_hint("q@local", oi), "not installed")
+        self.assertEqual(dc.missing_hint("q@local", oi), "not installed — Apply installs it")  # any marketplace installs
 
     def test_no_connector_drift_when_list_unknown(self):
         cfg = dc.load_config()
