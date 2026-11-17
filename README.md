@@ -55,7 +55,7 @@ Then run `/ntk` (or `python3 scripts/ntk.py scan`). Folders without a profile sh
 
 ## The model: projects are users, profiles are groups
 
-ntk follows the AWS IAM pattern.
+ntk follows the pattern used for managing permissions in cloud environments.
 
 - A **profile** is a small, single-purpose group: `plugins` and `connectors` it grants, plus optional `deny_plugins` and `deny_connectors`. It has an optional `group` (for the page) and a `description`. Connector names are written without the `claude.ai ` prefix.
 - A **project** (a folder under `root`) is a user. In `projects.json` it lists the `profiles` attached to it. Capability comes only from attached profiles.

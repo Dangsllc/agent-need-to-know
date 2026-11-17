@@ -8,7 +8,7 @@ First public release, as **Agent Need-to-Know** (short command `ntk`). The proje
 - Config directory `~/.claude/agent-need-to-know/`, environment prefix `NTK_`, cache `.ntk-cache.json`, log `ntk.log`, hook messages prefixed `ntk:`.
 - Compatibility for the working-name install: the old config directory is still read (with a note in `scan` and the page footer, nothing moved automatically), `DEVCONSOLE_*` variables still work (deprecated), `.devconsole-cache.json` and `devconsole.log` are still read and appended to, and `devconsole@*` plugin ids are still treated as this plugin.
 
-- **Composable profiles** on the IAM model: projects are users, profiles are groups, allow is a union, explicit deny wins, `default_profiles` apply everywhere, inline exceptions are flagged and discouraged.
+- **Composable profiles**, modeled on cloud permission management: projects are users, profiles are groups, allow is a union, explicit deny wins, `default_profiles` apply everywhere, inline exceptions are flagged and discouraged.
 - **Deny-by-default connectors:** a claude.ai connector no attached profile grants is turned off for that project, including connectors added to the account later.
 - **Console page** (`/ntk`): projects with the reason behind every switch, a profile editor with a preview of the projects a change touches, and the capabilities inbox. Local only, with a per-run token and a Host check.
 - **`/project-setup` interview:** inspects a folder, asks a few questions, proposes a set of small profiles and attaches them. `/project-setup init` creates the config and starter files.

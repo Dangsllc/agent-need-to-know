@@ -1,0 +1,60 @@
+{
+  "_about": "Profiles are groups; projects are users. A project gets capability only from the profiles attached to it in projects.json, plus every profile in 'default_profiles'. Allowed = union of those profiles' plugins and connectors. 'deny_plugins' / 'deny_connectors' always win over any grant. Connectors are denied by default: a claude.ai connector no attached profile grants is turned off (names are written without the 'claude.ai ' prefix). Keep profiles small and single-purpose so they compose.",
+  "schema_version": 2,
+  "default_profiles": [
+    "baseline"
+  ],
+  "plugin_accounts": {
+    "_about": "Optional notes on where each plugin comes from; /ntk offers these ids when you add a plugin to a profile.",
+    "pyright-lsp@claude-plugins-official": "official marketplace",
+    "typescript-lsp@claude-plugins-official": "official marketplace",
+    "security-guidance@claude-plugins-official": "official marketplace",
+    "frontend-design@claude-plugins-official": "official marketplace"
+  },
+  "profiles": {
+    "baseline": {
+      "group": "default",
+      "description": "Attached to every project. No plugins, no connectors.",
+      "plugins": [],
+      "connectors": []
+    },
+    "lang-python": {
+      "group": "code",
+      "description": "Python code intelligence.",
+      "plugins": [
+        "pyright-lsp@claude-plugins-official"
+      ],
+      "connectors": []
+    },
+    "lang-typescript": {
+      "group": "code",
+      "description": "TypeScript and JavaScript code intelligence.",
+      "plugins": [
+        "typescript-lsp@claude-plugins-official"
+      ],
+      "connectors": []
+    },
+    "secure-code": {
+      "group": "code",
+      "description": "Flags risky edits as you go. For security-sensitive code.",
+      "plugins": [
+        "security-guidance@claude-plugins-official"
+      ],
+      "connectors": []
+    },
+    "frontend-design": {
+      "group": "code",
+      "description": "Distinctive, production-grade frontend UI.",
+      "plugins": [
+        "frontend-design@claude-plugins-official"
+      ],
+      "connectors": []
+    },
+    "docs": {
+      "group": "writing",
+      "description": "Notes, writing and reference folders. Built-ins only.",
+      "plugins": [],
+      "connectors": []
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "agent-need-to-know",
+  "version": "1.0.0",
+  "description": "Least-privilege control for the plugins and connectors Claude Code sessions load: composable per-project profiles, deny-by-default connectors, previews before every change. Directory edition (instructions only); the full edition with a console page is on GitHub.",
+  "author": {"name": "Dangsllc"},
+  "homepage": "https://github.com/Dangsllc/agent-need-to-know",
+  "repository": "https://github.com/Dangsllc/agent-need-to-know",
+  "icon": "./assets/icon.png",
+  "license": "MIT",
+  "keywords": ["privacy", "least-privilege", "need-to-know", "plugins", "mcp", "connectors", "hipaa", "profiles", "minimum-necessary"]
+}

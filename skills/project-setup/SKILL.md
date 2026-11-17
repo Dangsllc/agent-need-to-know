@@ -5,7 +5,7 @@ description: Interview the user about a project folder and attach the ntk profil
 
 # Project setup
 
-Agent Need-to-Know (`ntk`) works like AWS IAM:
+Agent Need-to-Know (`ntk`) works like managing permissions in cloud environments:
 - **Projects are users and profiles are groups.** A project gets plugins and connectors only from the profiles attached to it, plus the default profiles every project gets.
 - **Profiles are small and single-purpose.** Examples: `lang-python`, `secure-code`, `google-docs`. You give a project the capability it needs by attaching several of them.
 - **Explicit deny wins.** Connectors are off unless some attached profile grants them.

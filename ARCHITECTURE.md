@@ -10,7 +10,7 @@ scripts/ntk                 optional POSIX sh launcher (opens the page, passes o
 scripts/ntk_pkg/
   config.py      paths, NTK_* env overrides, config.json, atomic writes, change log
   model.py       profiles.json / projects.json read+write with schema_version,
-                 the capability id rule, resolve() (IAM evaluation), project discovery
+                 the capability id rule, resolve() (allow-union, deny-wins evaluation), project discovery
   engine.py      evaluate desired vs actual, scan, plan/apply, profile and project edits,
                  the SessionStart check, snapshot
   lifecycle.py   capabilities.json registry, inbox, adopt / ignore / retire
