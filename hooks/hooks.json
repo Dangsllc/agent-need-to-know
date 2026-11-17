@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/devconsole.py\" check \"$PWD\" --hook",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/devconsole.py\" check --hook",
             "timeout": 5
           }
         ]

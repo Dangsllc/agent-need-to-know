@@ -23,7 +23,7 @@ case "$1" in
         sleep 0.2
       done
     fi
-    open "$URL"
+    if command -v open >/dev/null 2>&1; then open "$URL"; elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$URL" >/dev/null 2>&1; fi
     echo "devconsole: $URL  (stop with: devconsole stop)"
     ;;
   stop)
