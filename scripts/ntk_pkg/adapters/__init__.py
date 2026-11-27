@@ -202,11 +202,17 @@ class Fleet(Adapter):
                 return a.uncontrolled_hint()
         return ""
 
-    def stale_entries(self, state, root):
-        out = []
+    def stale_by(self, state, root):
+        """{adapter name: its stale entries}, only adapters that have some."""
+        out = {}
         for a in all():
-            out += a.stale_entries(_state_for(state, a), root) or []
+            e = a.stale_entries(_state_for(state, a), root) or []
+            if e:
+                out[a.name] = list(e)
         return out
+
+    def stale_entries(self, state, root):
+        return [e for v in self.stale_by(state, root).values() for e in v]
 
     def list_plugins(self, path):
         """The primary adapter's list (None if it can't be read) plus every

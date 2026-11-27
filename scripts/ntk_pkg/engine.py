@@ -443,7 +443,8 @@ def scan(cfg, fresh=False):
         row = evaluate(cfg, r, projects.get(r), profiles, defaults, cj, pl, connectors, costs, aw)
         row["missing_hints"] = {i: A().missing_hint(i, oi) for i in row["missing"]}
         rows.append(row)
-    stale = A().stale_entries(cj, cfg.root)
+    stale_by = A().stale_by(cj, cfg.root) if hasattr(A(), "stale_by") else {"": A().stale_entries(cj, cfg.root)}
+    stale = [e for v in stale_by.values() for e in v]
     complete = bool(connectors) and all(
         (cache["projects"].get(abs_of(cfg, r)) or {}).get("plugins") is not None for r in live)
     lists = [(cache["projects"].get(abs_of(cfg, r)) or {}).get("plugins") for r in live]
@@ -471,7 +472,7 @@ def scan(cfg, fresh=False):
         "root": cfg.root, "tools": adapters.tools(), "org": {"name": oi["name"], "id8": oi["id8"]}, "orgs": oi["orgs"],
         "default_profiles": defaults, "profiles": prof_out,
         "known_plugins": known_plugins, "available_connectors": connectors,
-        "counts": counts, "projects": rows, "stale": stale, "missing": miss_list,
+        "counts": counts, "projects": rows, "stale": stale, "stale_by": stale_by, "missing": miss_list,
         "has_costs": costs is not None, "globals": global_summary(rows),
         "undo": history.latest_undoable(cfg), "history": history.entries(cfg)[:60],
         "account_wide": account_wide_summary(rows, aw, meta["account_wide_policy"]),

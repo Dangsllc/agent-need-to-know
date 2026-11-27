@@ -116,6 +116,7 @@ class FleetConnectors(Env):
         self.assertTrue(conns["fake:mcp:b"]["desired_off"])    # implicit deny
         self.assertIn("connector fake:mcp:b is on, profiles want it off", r["drift"])
         self.assertIn("fake-stale", st["stale"])
+        self.assertEqual(st["stale_by"].get("fake"), ["fake-stale"])
 
     def test_uncontrolled_folder_is_a_note_not_drift(self):
         self.fake.off = {}                       # no project for app

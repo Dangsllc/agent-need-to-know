@@ -468,7 +468,8 @@ function renderBanners(){
     bn.appendChild(ap);
   }
   if((state.stale||[]).length){
-    var d = el("details","panel"); d.appendChild(el("summary",null,"Stale "+W("brand")+" project entries ("+state.stale.length+", folder gone, report only)"));
+    var d = el("details","panel"); var onlyPrim = !state.stale_by || Object.keys(state.stale_by).every(function(k){ return state.tools && state.tools[0] && k===state.tools[0].name; });
+    d.appendChild(el("summary",null,"Stale "+(onlyPrim ? W("brand")+" " : "")+"project entries ("+state.stale.length+", folder gone, report only)"));
     var u2 = el("ul"); state.stale.forEach(function(s){ var li=el("li"); li.appendChild(el("code",null,s)); u2.appendChild(li); });
     d.appendChild(u2); bn.appendChild(d);
   }
