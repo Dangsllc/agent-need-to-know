@@ -688,6 +688,33 @@ class TestCapabilities(Env):
         self.assertEqual(self.statuses()["eng@synced"], "active")
         self.assertEqual(self.caps()["eng@synced"]["seen_on_orgs"], ["orga1111"])
 
+    def login(self, org):
+        jdump({"projects": {}, "oauthAccount": {"organizationUuid": org}}, self.cj)
+
+    def test_switching_accounts_merges_orgs_and_never_marks_gone(self):
+        # Gmail is a connector only the first account has
+        self.login("orga1111-aaaa")
+        engine.scan(self.cfg, fresh=True)
+        self.assertEqual(self.caps()["Gmail"]["seen_on_orgs"], ["orga1111"])
+        # log into the second account: Gmail is absent there, Docs is on both
+        self.login("orgb2222-bbbb")
+        cc.fetch_connectors = lambda root: ["Docs"]
+        self.write_cache(["Docs"])
+        engine.scan(self.cfg, fresh=True)
+        self.assertEqual(self.statuses()["Gmail"], "active")
+        self.assertEqual(self.caps()["Docs"]["seen_on_orgs"], ["orga1111", "orgb2222"])
+        # an item already marked gone by an older ntk comes back on the other login
+        d = jload(self.capf)
+        d["capabilities"]["Gmail"]["status"] = "gone"
+        jdump(d, self.capf)
+        engine.scan(self.cfg, fresh=True)
+        self.assertEqual(self.statuses()["Gmail"], "active")
+        # but something that vanishes from the current login's own org is gone
+        cc.fetch_connectors = lambda root: ["Slack"]  # an empty list means the fetch failed
+        self.write_cache(["Slack"])
+        engine.scan(self.cfg, fresh=True)
+        self.assertEqual(self.statuses()["Docs"], "gone")
+
     def test_incomplete_scan_never_marks_gone(self):
         engine.scan(self.cfg, fresh=True)
         cc.fetch_connectors = lambda root: []

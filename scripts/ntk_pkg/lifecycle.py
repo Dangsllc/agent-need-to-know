@@ -82,16 +82,31 @@ def update_capabilities(cfg, lists, oi, connectors, profiles, complete=True):
         if e.get("status") == "gone":
             e["status"] = "active"
             changed = True
-        if s["orgs"] and e.get("seen_on_orgs") != sorted(s["orgs"]):
-            e["seen_on_orgs"] = sorted(s["orgs"])
+        # merge, never replace: each login only sees its own org, and the
+        # orgs recorded from the other login are still true
+        merged = sorted(set(e.get("seen_on_orgs") or []) | set(s["orgs"]))
+        if s["orgs"] and e.get("seen_on_orgs") != merged:
+            e["seen_on_orgs"] = merged
             changed = True
         if (e.get("last_seen") or "")[:13] != now[:13]:
             e["last_seen"] = now
             changed = True
     if complete:
+        cur = (oi or {}).get("id8") or ""
         for i, e in caps.items():
+            if i in seen:
+                continue
+            orgs = e.get("seen_on_orgs") or []
+            # only ever seen on another claude.ai account: absent here because of
+            # the login, not because it went away (this also undoes earlier
+            # scans that marked such items gone)
+            if orgs and cur and cur not in orgs:
+                if e.get("status") == "gone":
+                    e["status"] = "active"
+                    changed = True
+                continue
             # never-seen items (a profile names them, nothing installed them yet) are not gone
-            if i not in seen and e.get("status") == "active" and e.get("last_seen") and not foreign_tool(i):
+            if e.get("status") == "active" and e.get("last_seen") and not foreign_tool(i):
                 e["status"] = "gone"
                 changed = True
     if changed:
