@@ -178,7 +178,7 @@ ul.efx{margin:0;padding-left:16px;font-size:12px}
     <div class="panel" id="inbox"></div>
     <div id="capconfirm"></div>
     <div class="tablewrap"><table style="min-width:900px">
-      <thead><tr><th>Capability</th><th>Kind</th><th>Status</th><th>First seen</th><th>Last seen</th><th>Orgs</th><th>Granted by</th><th>Projects</th><th></th></tr></thead>
+      <thead><tr><th>Capability</th><th>Kind</th><th>Status</th><th>First seen</th><th>Last seen</th><th id="th-orgs">Orgs</th><th>Granted by</th><th>Projects</th><th></th></tr></thead>
       <tbody id="captbody"></tbody>
     </table></div>
   </section>
@@ -217,6 +217,13 @@ function btn(label, cls, fn, disabled){
   return b;
 }
 function setMsg(t, err){ var m=document.getElementById("msg"); m.textContent=t||""; m.className="msg"+(err?" err":""); }
+// words for the tool's things, from state.tools[0].labels; the literals are for older state
+var DEFAULT_WORDS = {product:"Claude Code", brand:"Claude", cli:"claude", account_short:"org", accounts_short:"orgs"};
+function W(key){
+  var t = state && state.tools && state.tools[0], l = (t && t.labels) || {};
+  return l[key] || DEFAULT_WORDS[key] || "";
+}
+function cap1(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
 function short(id){ return id.split("@")[0]; }
 function anyBusy(){ return Object.keys(busy).length > 0; }
 
@@ -288,7 +295,7 @@ function popover(p, kind, id, it){
   var d = el("div","pop"); d.setAttribute("role","menu");
   var head = el("h3",null,(kind==="plugin"?"Plugin ":"Connector ")+id+": "+(on?"on":"off")+(it.state==="missing"?" (missing)":"")); d.appendChild(head);
   if(it.state==="missing") d.appendChild(el("div","hint bad", (p.missing_hints||{})[id] || "not installed"));
-  if(it.global) d.appendChild(el("div","hint","Global plugin: Claude Code has one switch for it, shared by every project. Grant it in a default profile (on everywhere) or in none (off everywhere); a project-only grant can't take effect."));
+  if(it.global) d.appendChild(el("div","hint","Global plugin: "+W("product")+" has one switch for it, shared by every project. Grant it in a default profile (on everywhere) or in none (off everywhere); a project-only grant can't take effect."));
   function opts(){ var o = el("div","opts"); d.appendChild(o); return o; }
   var own = p.attached || [];
   if(it.inline){
@@ -389,7 +396,8 @@ function render(){
   ["projects","profiles","capabilities","history"].forEach(function(t){ document.getElementById("tab-"+t).setAttribute("aria-selected", String(tab===t)); });
   ["q","sf"].forEach(function(i){ document.getElementById(i).classList.toggle("hide", tab!=="projects"); });
   var o = state.org;
-  document.getElementById("org").textContent = "Logged in to " + (o.name||"unknown org") + (o.id8 ? " ("+o.id8+")" : "") + (RO ? "  |  snapshot " : "  |  updated ") + (state.generated||"").replace("T"," ").slice(0,16);
+  document.getElementById("th-orgs").textContent = cap1(W("accounts_short"));
+  document.getElementById("org").textContent = "Logged in to " + (o.name||"unknown "+W("account_short")) + (o.id8 ? " ("+o.id8+")" : "") + (RO ? "  |  snapshot " : "  |  updated ") + (state.generated||"").replace("T"," ").slice(0,16);
   var ub = document.getElementById("undo"), u = state.undo;
   ub.disabled = RO || !u || !!busy.undo;
   ub.textContent = busy.undo ? "Undoing..." : "Undo";
@@ -430,7 +438,7 @@ function renderBanners(){
     gp.appendChild(el("span","glabel","Global plugins"));
     gp.appendChild(el("span","hint"," one switch each, shared by every project. Grant them in a default profile (on everywhere) or in none (off everywhere). "));
     var why = {"needs-on":"off; profiles want it on. Apply all sets it.", "needs-off":"on; no profile grants it. Apply all sets it.",
-               "unavailable":"wanted, but this version of Claude Code doesn't offer it right now."};
+               "unavailable":"wanted, but this version of "+W("product")+" doesn't offer it right now."};
     var row = el("div","sws");
     gl.forEach(function(g){
       var cls = "sw glob " + (g.status==="unavailable" ? "missing" : (g.enabled ? "on" : "off")) + (g.status==="ok"||g.status==="unavailable" ? "" : " drift");
@@ -460,7 +468,7 @@ function renderBanners(){
     bn.appendChild(ap);
   }
   if((state.stale||[]).length){
-    var d = el("details","panel"); d.appendChild(el("summary",null,"Stale Claude project entries ("+state.stale.length+", folder gone, report only)"));
+    var d = el("details","panel"); d.appendChild(el("summary",null,"Stale "+W("brand")+" project entries ("+state.stale.length+", folder gone, report only)"));
     var u2 = el("ul"); state.stale.forEach(function(s){ var li=el("li"); li.appendChild(el("code",null,s)); u2.appendChild(li); });
     d.appendChild(u2); bn.appendChild(d);
   }
@@ -473,7 +481,7 @@ function renderProjects(){
   news.forEach(function(p){
     var r = el("div","newrow"); r.appendChild(el("strong",null,p.path));
     r.appendChild(profileSelect(p));
-    var cmd = 'cd "'+p.abs+'" && claude "/project-setup"';
+    var cmd = 'cd "'+p.abs+'" && '+W("cli")+' "/project-setup"';
     var b = btn("Copy /project-setup command","btn sm", function(){ copy(cmd,b); });
     r.appendChild(b); nl.appendChild(r);
   });
@@ -838,7 +846,7 @@ function renderCaps(){
     g.appendChild(el("strong",null,c.id));
     g.appendChild(el("span","tag",c.status==="new" ? "new "+c.kind : "gone "+c.kind));
     var sub = c.status==="new"
-      ? "On orgs: "+(c.seen_on_orgs.join(", ")||"-")+(c.description ? ". "+c.description : "")
+      ? "On "+W("accounts_short")+": "+(c.seen_on_orgs.join(", ")||"-")+(c.description ? ". "+c.description : "")
       : "Last seen "+fmtDate(c.last_seen)+". Still referenced by: "+(c.referenced_by.join(", ")||"no profile");
     g.appendChild(el("div","sub",sub)); it.appendChild(g);
     if(c.status==="new"){

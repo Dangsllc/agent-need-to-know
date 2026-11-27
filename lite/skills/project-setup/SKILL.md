@@ -10,11 +10,11 @@ You are choosing the smallest set of plugins and connectors that covers a projec
 Use the need-to-know skill's `references/rules.md` for the file formats and resolution rules, and its `references/apply.md` to write changes. Every write is previewed first.
 
 ## 0. First run (`init`, or no config)
-If neither `~/.claude/agent-need-to-know/config.json` nor `~/.claude/devconsole/config.json` exists, ask:
+If none of `~/.config/ntk/config.json`, `~/.claude/agent-need-to-know/config.json` or `~/.claude/devconsole/config.json` exists, ask:
 1. Which folder holds your projects (the root)?
-2. Where should profiles live (the data_dir)? The default is `~/.claude/agent-need-to-know/`.
+2. Where should profiles live (the data_dir)? The default is `~/.config/ntk/`.
 
-Write `{"root": "...", "data_dir": "..."}` to `~/.claude/agent-need-to-know/config.json`. If data_dir has no `profiles.json` or `projects.json`, copy them from `${CLAUDE_PLUGIN_ROOT}/templates/profiles.example.json` and `projects.example.json`. Then list the root's top-level folders and offer to set them up one at a time.
+Write `{"root": "...", "data_dir": "..."}` to `~/.config/ntk/config.json`. If data_dir has no `profiles.json` or `projects.json`, copy them from `${CLAUDE_PLUGIN_ROOT}/templates/profiles.example.json` and `projects.example.json`. Then list the root's top-level folders and offer to set them up one at a time.
 
 ## 1. Look before asking
 In the current folder (or the one named), find out:

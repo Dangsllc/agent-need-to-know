@@ -21,6 +21,16 @@ def A():
     return adapters.get()
 
 
+def L(key):
+    """A word from the primary adapter's labels (see adapters/base.py)."""
+    return adapters.primary().labels.get(key, "")
+
+
+def _resolve(profiles, defaults, entry, avail=None):
+    """model.resolve, enforcing other tools' ids that an available adapter manages."""
+    return resolve(profiles, defaults, entry, avail, managed=adapters.managed)
+
+
 def load_cache(cfg):
     c = read_json(cfg.cache_read_path, {})
     if not isinstance(c, dict):
@@ -51,10 +61,16 @@ def invalidate_cache(cfg, abspath):
 
 
 
+def _tool(cid):
+    """Name of the adapter that manages `cid` ('' if none)."""
+    o = adapters.owner(cid)
+    return o.name if o else ""
+
+
 def evaluate(cfg, rel, entry, profiles, defaults, cj, plugin_list, connectors_avail, costs, aw=None):
     ap = abs_of(cfg, rel)
     gone = not os.path.isdir(ap)
-    des = resolve(profiles, defaults, entry, connectors_avail)
+    des = _resolve(profiles, defaults, entry, connectors_avail)
     res = {"path": rel, "abs": ap, "notes": (entry or {}).get("notes", ""),
            "attached": des["own"], "defaults": des["defaults"], "unknown_profiles": des["unknown"],
            "recommended": [r for r in (entry or {}).get("recommended", [])
@@ -81,14 +97,14 @@ def evaluate(cfg, rel, entry, profiles, defaults, cj, plugin_list, connectors_av
             st = ("global-on" if en else "global-off") if pr else ("global-unavailable" if scanned else "on?")
             res["plugins"].append({"id": i, "desired": want, "enabled": en, "present": pr, "state": st,
                                    "sources": sp.get(i, []), "denied_by": dp.get(i, []), "inline": iv,
-                                   "global": True})
+                                   "global": True, "tool": _tool(i)})
             continue
         if i in (aw or ()) and en and not want:
             # on for the whole account, not by this project's profiles: one decision
             # for every project (scan()["account_wide"]), not per-project drift
             res["plugins"].append({"id": i, "desired": want, "enabled": en, "present": pr, "state": "account-wide",
                                    "sources": sp.get(i, []), "denied_by": dp.get(i, []), "inline": iv,
-                                   "global": False, "account_wide": True})
+                                   "global": False, "account_wide": True, "tool": _tool(i)})
             continue
         if want and scanned and not pr:
             st = "missing"
@@ -105,7 +121,7 @@ def evaluate(cfg, rel, entry, profiles, defaults, cj, plugin_list, connectors_av
             st = "off"
         res["plugins"].append({"id": i, "desired": want, "enabled": en, "present": pr, "state": st,
                                "sources": sp.get(i, []), "denied_by": dp.get(i, []), "inline": iv,
-                               "global": False, "account_wide": i in (aw or ())})
+                               "global": False, "account_wide": i in (aw or ()), "tool": _tool(i)})
     avail = set(connectors_avail or [])
     c_on, c_off = set(des["connectors_on"]), set(des["connectors_off"])
     sc, dc_ = des["sources"]["connector"], des["denied_by"]["connector"]
@@ -116,7 +132,8 @@ def evaluate(cfg, rel, entry, profiles, defaults, cj, plugin_list, connectors_av
             res["drift"].append("connector %s is %s, profiles want it %s" % (c, "off" if a_off else "on", "off" if d_off else "on"))
         iv = "on" if c in inl.get("connectors_on", []) else ("off" if c in inl.get("connectors_off", []) else None)
         res["connectors"].append({"name": c, "desired_off": d_off, "actual_off": a_off, "available": c in avail,
-                                  "sources": sc.get(c, []), "denied_by": dc_.get(c, []), "inline": iv})
+                                  "sources": sc.get(c, []), "denied_by": dc_.get(c, []), "inline": iv,
+                                  "tool": _tool(c)})
     if costs is not None:
         res["cost"] = sum(costs.get(p["id"], 0) for p in res["plugins"] if p["desired"])
     if not entry:  # no entry, so nothing is desired and nothing can drift
@@ -167,7 +184,7 @@ def global_status(cfg, plugin_list=None):
     managed = [r for r in projects if os.path.isdir(abs_of(cfg, r))]
     wants = {}
     for r in managed:
-        for i in resolve(profiles, meta["default_profiles"], projects[r], None)["plugins"]:
+        for i in _resolve(profiles, meta["default_profiles"], projects[r], None)["plugins"]:
             if A().is_global(i):
                 wants.setdefault(i, []).append(r)
     out = []
@@ -230,7 +247,7 @@ def _wanting(cfg, pid):
     profiles, meta = load_profiles(cfg)
     projects = load_projects(cfg)["projects"]
     return [r for r in projects if os.path.isdir(abs_of(cfg, r))
-            and pid in resolve(profiles, meta["default_profiles"], projects[r], None)["plugins"]]
+            and pid in _resolve(profiles, meta["default_profiles"], projects[r], None)["plugins"]]
 
 
 def account_wide_decide(cfg, pid, choice, dry=False, out=print):
@@ -425,7 +442,7 @@ def scan(cfg, fresh=False):
                            if not foreign_tool(i))
     return {
         "generated": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
-        "root": cfg.root, "org": {"name": oi["name"], "id8": oi["id8"]}, "orgs": oi["orgs"],
+        "root": cfg.root, "tools": adapters.tools(), "org": {"name": oi["name"], "id8": oi["id8"]}, "orgs": oi["orgs"],
         "default_profiles": defaults, "profiles": prof_out,
         "known_plugins": known_plugins, "available_connectors": connectors,
         "counts": counts, "projects": rows, "stale": stale, "missing": miss_list,
@@ -466,7 +483,7 @@ def plan_project(cfg, rel, ctx, only=None):
     lists = ctx.get("lists")
     pl = lists[rel] if lists is not None and rel in lists else A().list_plugins(ap)
     if pl is None:
-        return None, [], ("could not read the plugin list for %s (is `claude` on PATH and logged in?)" % rel, 1)
+        return None, [], (("could not read the plugin list for %s " % rel + A().unreadable_hint()).strip(), 1)
     profiles, meta = load_profiles(cfg)
     if "aw" not in ctx:
         ctx["aw"] = set(A().account_wide())
@@ -752,7 +769,7 @@ def do_inline(cfg, rel, kind, ident, value, out=print, apply=True):
     ident = norm_conn(ident) if kind == "connector" else ident
     if foreign_tool(ident):
         out("%s is reserved for another tool (%s:) and is not supported yet; "
-            "inline exceptions only apply to Claude Code ids" % (ident, foreign_tool(ident)))
+            "inline exceptions only apply to %s ids" % (ident, foreign_tool(ident), L("product")))
         return 2
     on_k, off_k = ("plugins_on", "plugins_off") if kind == "plugin" else ("connectors_on", "connectors_off")
     inl = e.setdefault("inline", {})
@@ -760,7 +777,7 @@ def do_inline(cfg, rel, kind, ident, value, out=print, apply=True):
         if ident in inl.get(k, []):
             inl[k] = [x for x in inl[k] if x != ident]
     if value != "clear":
-        base = resolve(profiles, meta["default_profiles"], e, None)  # item's own inline already removed
+        base = _resolve(profiles, meta["default_profiles"], e, None)  # item's own inline already removed
         if kind == "plugin":
             granted, denied = ident in base["sources"]["plugin"], ident in base["denied_by"]["plugin"]
         else:
@@ -840,13 +857,13 @@ def check_path(path, hook=False):
     if key is None and rel != "." and not _visible(rel.split(os.sep)[0]):
         return  # hidden/underscore folders (_archive, .git, node_modules…) are never "new"
     if key is None:
-        msg = ("ntk: this folder (%s) has no plugin profile, so every claude.ai connector is on "
-               "and no project plugins are set. Offer the user /project-setup." % rel)
+        msg = ("ntk: this folder (%s) has no plugin profile, so every %s is on "
+               "and no project plugins are set. Offer the user /project-setup." % (rel, L("connector")))
         _emit(msg + lifecycle._caps_hint(cfg, hook), hook, plain="ntk: %s is new (no profile)" % rel)
         return
     entry = projects[key]
     conn = (load_cache(cfg).get("connectors") or {}).get("names") or None  # no cache: skip connector drift
-    des = resolve(profiles, meta["default_profiles"], entry, conn)
+    des = _resolve(profiles, meta["default_profiles"], entry, conn)
     ap = abs_of(cfg, key)
     st = A().read_project(ap)
     ep = st["plugins_enabled"]
@@ -909,7 +926,7 @@ def md_escape(s):
 
 def snapshot(cfg):
     st = scan(cfg)
-    lines = ["# Console", "", "Generated %s. Org: %s (%s)." % (st["generated"], st["org"]["name"] or "unknown", st["org"]["id8"] or "-"),
+    lines = ["# Console", "", "Generated %s. %s: %s (%s)." % (st["generated"], L("account_short").capitalize(), st["org"]["name"] or "unknown", st["org"]["id8"] or "-"),
              "", "| project | profiles | status | plugins on | connectors on | inline | notes |", "|---|---|---|---|---|---|---|"]
     for p in st["projects"]:
         lines.append("| %s |" % " | ".join(md_escape(x) for x in (

@@ -19,6 +19,36 @@ class Adapter(object):
     name = ""   # id prefix for this tool's own ids, e.g. "codex" for `codex:mcp:github`
     label = ""  # human name
 
+    # --- what this adapter can do (the engine and page read these) ------------
+    # kinds: of "plugin" (plugins, extensions), "mcp" (MCP servers, connectors),
+    #   "skill" (skills, rules), "instructions" (instruction files, report only)
+    # scopes: of "project" (per folder), "global" (one switch for every project),
+    #   "account" (a user-level install of something scopable)
+    kinds = ()
+    scopes = ()
+    can_install = False  # Apply can install a missing plugin
+    # words the page and messages use for this tool's things; keys:
+    #   plugin, plugins, connector, connectors, account, accounts;
+    #   also account_short/accounts_short (the bare word, e.g. "org"), product
+    #   (the tool's name in prose), brand (its short name), cli (its command),
+    #   state_file (its per-user state file, named in "stale entry" reports)
+    labels = {}
+
+    def available(self):
+        """True if this tool is installed here. Only adapters after the first are
+        asked; the first is always used. File checks only, no programs run."""
+        return True
+
+    def declaration(self):
+        """{name, label, kinds, scopes, can_install, labels}, for the page."""
+        return {"name": self.name, "label": self.label, "kinds": list(self.kinds),
+                "scopes": list(self.scopes), "can_install": bool(self.can_install),
+                "labels": dict(self.labels)}
+
+    def unreadable_hint(self):
+        """Appended when this tool's plugin list can't be read, e.g. '(is X logged in?)'."""
+        return ""
+
     # --- the id rule ----------------------------------------------------------
     def owns(self, cid):
         """True if this adapter manages the capability id. The first adapter owns

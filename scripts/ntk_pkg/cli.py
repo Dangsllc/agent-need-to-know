@@ -6,7 +6,7 @@ import sys
 
 from . import history, model
 from .config import config_path, load_config
-from .engine import (account_wide_decide, set_account_wide_policy, undo_change, apply_all, check_path, do_apply, do_attach, do_inline, profile_default,
+from .engine import (L, account_wide_decide, set_account_wide_policy, undo_change, apply_all, check_path, do_apply, do_attach, do_inline, profile_default,
                      profile_delete, profile_edit, profile_new, render_table, scan, snapshot)
 from .lifecycle import (capability_adopt, capability_ignore, capability_retire, list_caps,
                         show_inbox)
@@ -173,7 +173,7 @@ def _run(ap, args, cfg):
         if args.json:
             print(json.dumps(st, indent=2))
             return 0
-        print("Org: %s (%s)  root: %s" % (st["org"]["name"] or "unknown", st["org"]["id8"] or "-", st["root"]))
+        print("%s: %s (%s)  root: %s" % (L("account_short").capitalize(), st["org"]["name"] or "unknown", st["org"]["id8"] or "-", st["root"]))
         print(render_table(st))
         print("\n" + "  ".join("%s=%d" % kv for kv in st["counts"].items() if kv[1]))
         if args.verbose:
@@ -195,7 +195,7 @@ def _run(ap, args, cfg):
                       "needs-off": "is on; no profile grants it (`ntk apply --all` sets it)",
                       "split": "profiles disagree (wanted in %d project(s), not in %d); it is one switch for "
                                "every project, so put it in a default profile or in none",
-                      "unavailable": "is wanted but this version of Claude Code doesn't offer it right now"}
+                      "unavailable": "is wanted but this version of %s doesn't offer it right now" % L("product")}
         AW_MSG = {"pending": "is on for the whole account, not just where profiles grant it (%d of %d projects); "
                              "decide: `ntk account-wide %s project-only` or `... everywhere`",
                   "will-contain": "is on for the whole account; the contain policy makes it project-only on the next "
@@ -214,7 +214,7 @@ def _run(ap, args, cfg):
         for n in st.get("notes", []):
             print("note: " + n)
         for k in st["stale"]:
-            print("stale ~/.claude.json entry (folder gone): %s" % k)
+            print("stale %s entry (folder gone): %s" % (L("state_file"), k))
         return 0
     if args.cmd == "apply":
         if args.all:

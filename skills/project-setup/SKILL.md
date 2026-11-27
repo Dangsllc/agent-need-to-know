@@ -13,12 +13,12 @@ Agent Need-to-Know (`ntk`) works like managing permissions in cloud environments
 
 Every enabled plugin and connector adds to every session's context in that folder, so attach the fewest profiles that cover the work.
 
-The engine is `${CLAUDE_PLUGIN_ROOT}/scripts/ntk.py`. Call it as `ENGINE` below. It reads and writes `profiles.json` and `projects.json` in the data_dir named in `~/.claude/agent-need-to-know/config.json`. Change state only through `ENGINE`, never by editing settings files. `ENGINE` is what keeps backups and the change log.
+The engine is `${CLAUDE_PLUGIN_ROOT}/scripts/ntk.py`. Call it as `ENGINE` below. It reads and writes `profiles.json` and `projects.json` in the data_dir named in `~/.config/ntk/config.json` (or a legacy `~/.claude/agent-need-to-know/` or `~/.claude/devconsole/` config, which is still read). Change state only through `ENGINE`, never by editing settings files. `ENGINE` is what keeps backups and the change log.
 
 ## 0. First run (`init`, or no config file)
-If neither `~/.claude/agent-need-to-know/config.json` nor the older `~/.claude/devconsole/config.json` exists, ask two things:
+If none of `~/.config/ntk/config.json`, `~/.claude/agent-need-to-know/config.json` or `~/.claude/devconsole/config.json` exists, ask two things:
 1. Which folder holds your projects (the root)?
-2. Where should profiles live (the data_dir)? The default is `~/.claude/agent-need-to-know/`.
+2. Where should profiles live (the data_dir)? The default is `~/.config/ntk/`.
 
 Write `{"root": ..., "data_dir": ...}` to the config. Copy `${CLAUDE_PLUGIN_ROOT}/templates/*.example.json` into data_dir as `profiles.json`/`projects.json` if they're absent. Run `ENGINE scan`, then offer to walk through the projects it marks `new`, one at a time.
 

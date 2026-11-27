@@ -343,6 +343,17 @@ class ClaudeCodeAdapter(Adapter):
     wrappers over the module functions above so tests can patch `run` and friends."""
     name = "claude"
     label = "Claude Code"
+    kinds = ("plugin", "mcp", "skill")
+    scopes = ("project", "global", "account")
+    can_install = True
+    labels = {"plugin": "plugin", "plugins": "plugins",
+              "connector": "claude.ai connector", "connectors": "claude.ai connectors",
+              "account": "claude.ai org", "accounts": "claude.ai orgs",
+              "account_short": "org", "accounts_short": "orgs",
+              "product": "Claude Code", "brand": "Claude", "cli": "claude", "state_file": "~/.claude.json"}
+
+    def unreadable_hint(self):
+        return "(is `claude` on PATH and logged in?)"
 
     def owns(self, cid):
         return foreign_tool(cid) is None

@@ -239,10 +239,12 @@ def _add(d, k, who):
         lst.append(who)
 
 
-def resolve(profiles, defaults, entry, avail=None):
+def resolve(profiles, defaults, entry, avail=None, managed=None):
     """IAM evaluation. Allowed = union of default + attached profiles' grants plus
     inline on. Denied = union of their deny lists plus inline off. Deny wins.
-    Connectors not allowed are off (implicit deny) among the `avail` names."""
+    Connectors not allowed are off (implicit deny) among the `avail` names.
+    `managed(id)` says whether an adapter enforces an id of another tool; ids it
+    doesn't cover stay in `foreign`, shown but not enforced."""
     entry = entry or {}
     own = list(entry.get("profiles", []))
     inline = entry.get("inline", {}) or {}
@@ -253,7 +255,7 @@ def resolve(profiles, defaults, entry, avail=None):
     foreign = {}  # ids that belong to another tool: kept for display, never enforced
 
     def _put(d, k, who):
-        if foreign_tool(k):
+        if foreign_tool(k) and not (managed and managed(k)):
             e = foreign.setdefault(k, {"id": k, "tool": foreign_tool(k),
                                        "kind": "plugin" if d is src["plugin"] or d is den["plugin"] else "connector",
                                        "sources": []})
