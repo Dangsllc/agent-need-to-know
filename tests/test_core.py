@@ -765,6 +765,13 @@ class TestAccountWide(Env):
         undo = history.entries(cfg)[0]
         self.assertTrue(any(l["where"] == "(account-wide)" for l in undo["log"]))  # so redo can switch it back
 
+    def test_project_only_forgets_cached_plugin_lists(self):
+        cfg = config.load_config()
+        engine.scan(cfg)  # fills the cache
+        self.assertTrue(engine.load_cache(cfg)["projects"])
+        engine.account_wide_decide(cfg, "b@x", "project-only", out=lambda m: None)
+        self.assertEqual(engine.load_cache(cfg)["projects"], {})
+
     def test_keep_everywhere_adds_to_default_profile(self):
         engine.account_wide_decide(config.load_config(), "b@x", "everywhere", out=lambda m: None)
         self.assertIn("b@x", jload(os.path.join(self.data, "profiles.json"))["profiles"]["base"]["plugins"])

@@ -103,7 +103,7 @@ def handle_post(cfg, path, body, msgs):
 def _label(path, body):
     """`ntk history` label for a console action, in the CLI's words."""
     name = path.rsplit("/", 1)[-1]
-    keys = ("action", "op", "name", "path", "profile", "kind", "id", "value")
+    keys = ("action", "op", "name", "path", "profile", "kind", "id", "value", "choice", "account_wide")
     vals = [str(body[k]) for k in keys if isinstance(body.get(k), str) and body.get(k)]
     if isinstance(body.get("profiles"), list):
         vals.append(",".join(str(x) for x in body["profiles"]))

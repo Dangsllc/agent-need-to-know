@@ -36,6 +36,14 @@ def save_cache(cfg, cache):
         pass
 
 
+def invalidate_all(cfg):
+    """Forget every cached plugin list: a global or account-wide switch changes
+    what every project sees, so a cached list would show the old state as drift."""
+    c = load_cache(cfg)
+    c["projects"] = {}
+    save_cache(cfg, c)
+
+
 def invalidate_cache(cfg, abspath):
     c = load_cache(cfg)
     c["projects"].pop(abspath, None)
@@ -189,6 +197,7 @@ def reconcile_globals(cfg, out=print, dry=False, tally=None):
                     rc = 1
                 else:
                     log_change(cfg, "(all projects)", "plugin:" + g["id"], a["old"], a["new"])
+                invalidate_all(cfg)
         elif g["status"] == "split":
             out("(all projects): global plugin %s left %s: profiles disagree (wanted by %d project(s), "
                 "not by %d); put it in a default profile or in none"
@@ -244,7 +253,9 @@ def account_wide_decide(cfg, pid, choice, dry=False, out=print):
         % (pid, len(want), (": " + ", ".join(want)) if want and len(want) <= 6 else ""))
     if dry:
         return 0
-    if A().set_global(pid, False, out):
+    rc0 = A().set_global(pid, False, out)
+    invalidate_all(cfg)
+    if rc0:
         return 1
     log_change(cfg, "(account-wide)", "plugin:" + pid, "on", "off")
     rc, ctx = 0, {"quiet_globals": True}
@@ -292,6 +303,7 @@ def reverse_account_wide(cfg, lines, out=print):
                 rc = 1
             else:
                 log_change(cfg, "(account-wide)", "plugin:" + pid, l["change"].split(" -> ")[-1].strip(), old)
+            invalidate_all(cfg)
     return rc
 
 
