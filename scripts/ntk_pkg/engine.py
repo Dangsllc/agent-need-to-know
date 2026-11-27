@@ -46,6 +46,19 @@ def save_cache(cfg, cache):
         pass
 
 
+def _same_tools(entry, tk):
+    """A cached list is valid only for the adapters that produced it. Entries
+    without `tools` (written before several adapters existed) count as the
+    primary adapter alone."""
+    return entry.get("tools", tk[:1]) == tk
+
+
+def _tag(entry, tk):
+    if tk != tk[:1]:
+        entry["tools"] = list(tk)
+    return entry
+
+
 def invalidate_all(cfg):
     """Forget every cached plugin list: a global or account-wide switch changes
     what every project sees, so a cached list would show the old state as drift."""
@@ -77,9 +90,16 @@ def evaluate(cfg, rel, entry, profiles, defaults, cj, plugin_list, connectors_av
                            if r in profiles and r not in des["attached"]],
            "inline_items": des["inline_items"], "drift": [], "missing": [], "missing_hints": {},
            "plugins": [], "connectors": [], "cost": None, "desired": des,
-           "foreign": des["foreign"]}
+           "foreign": des["foreign"], "tool_notes": []}
     ad = A()
-    actual_off = ad.connectors_off(cj, ap)
+    off_by = ad.connectors_off_by(cj, ap) if hasattr(ad, "connectors_off_by") else {"": ad.connectors_off(cj, ap)}
+    uncontrolled = {n for n, v in off_by.items() if v is None}
+    actual_off = []
+    for v in off_by.values():
+        actual_off += [n for n in (v or []) if n not in actual_off]
+    mixed = set(ad.connectors_mixed(cj, ap)) if hasattr(ad, "connectors_mixed") else set()
+    for n in sorted(uncontrolled):
+        res["tool_notes"].append(ad.uncontrolled_hint(n) or "%s: connectors not managed for this folder" % n)
     enabled = {p["id"] for p in plugin_list or [] if p["enabled"] and not ad.is_self(p["id"])}
     present = {p["id"] for p in plugin_list or []}
     scanned = plugin_list is not None
@@ -126,14 +146,17 @@ def evaluate(cfg, rel, entry, profiles, defaults, cj, plugin_list, connectors_av
     c_on, c_off = set(des["connectors_on"]), set(des["connectors_off"])
     sc, dc_ = des["sources"]["connector"], des["denied_by"]["connector"]
     for c in sorted(avail | c_on | c_off | set(actual_off)):
+        if _tool(c) in uncontrolled:
+            continue  # this tool can't switch connectors for this folder; noted in tool_notes
         a_off = c in actual_off
         d_off = (c in c_off) if (c in c_on or c in c_off) else a_off  # undecided: leave as is
-        if d_off != a_off:
+        is_mixed = c in mixed and a_off and not d_off
+        if d_off != a_off and not is_mixed:
             res["drift"].append("connector %s is %s, profiles want it %s" % (c, "off" if a_off else "on", "off" if d_off else "on"))
         iv = "on" if c in inl.get("connectors_on", []) else ("off" if c in inl.get("connectors_off", []) else None)
         res["connectors"].append({"name": c, "desired_off": d_off, "actual_off": a_off, "available": c in avail,
                                   "sources": sc.get(c, []), "denied_by": dc_.get(c, []), "inline": iv,
-                                  "tool": _tool(c)})
+                                  "tool": _tool(c), "mixed": is_mixed})
     if costs is not None:
         res["cost"] = sum(costs.get(p["id"], 0) for p in res["plugins"] if p["desired"])
     if not entry:  # no entry, so nothing is desired and nothing can drift
@@ -364,10 +387,11 @@ def get_connectors(cfg, ctx=None, fresh=False):
     cache = load_cache(cfg)
     c = cache.get("connectors") or {}
     names = c.get("names") or []
-    if fresh or not names or time.time() - c.get("ts", 0) > 86400:
+    tk = adapters.tool_key()
+    if fresh or not names or time.time() - c.get("ts", 0) > 86400 or not _same_tools(c, tk):
         got = A().list_available(cfg.root)
         if got:
-            cache["connectors"] = {"ts": time.time(), "names": got}
+            cache["connectors"] = _tag({"ts": time.time(), "names": got}, tk)
             save_cache(cfg, cache)
             names = got
     if ctx is not None:
@@ -385,15 +409,17 @@ def scan(cfg, fresh=False):
     rels = _uniq(discover(cfg, projects.keys()) + list(projects.keys()))
     live = [r for r in rels if os.path.isdir(abs_of(cfg, r))]
 
+    tk = adapters.tool_key()
+
     def need(r):
         c = cache["projects"].get(abs_of(cfg, r))
-        return fresh or not c or now - c.get("ts", 0) > CACHE_TTL
+        return fresh or not c or now - c.get("ts", 0) > CACHE_TTL or not _same_tools(c, tk)
 
     conn_c = cache.get("connectors") or {}
-    if fresh or not conn_c or now - conn_c.get("ts", 0) > CACHE_TTL:
+    if fresh or not conn_c or now - conn_c.get("ts", 0) > CACHE_TTL or not _same_tools(conn_c, tk):
         names = A().list_available(cfg.root)
         if names:
-            cache["connectors"] = {"ts": now, "names": names}
+            cache["connectors"] = _tag({"ts": now, "names": names}, tk)
     connectors = (cache.get("connectors") or {}).get("names", [])
     todo = [r for r in live if need(r)]
     if todo:
@@ -402,7 +428,7 @@ def scan(cfg, fresh=False):
             for f, r in futs.items():
                 pl = f.result()
                 if pl is not None:
-                    cache["projects"][abs_of(cfg, r)] = {"ts": now, "plugins": pl}
+                    cache["projects"][abs_of(cfg, r)] = _tag({"ts": now, "plugins": pl}, tk)
     if todo or cache.get("connectors") != conn_c:
         save_cache(cfg, cache)
     costs = read_json(os.path.join(cfg.data_dir, "plugin_costs.json"), None)
@@ -439,7 +465,7 @@ def scan(cfg, fresh=False):
         seen_plugins |= {p["id"] for p in r["plugins"]}
     known_plugins = sorted(i for i in (set(meta["plugin_accounts"]) | seen_plugins |
                                        {i for p in profiles.values() for i in p["plugins"]})
-                           if not foreign_tool(i))
+                           if not foreign_tool(i) or adapters.managed(i))
     return {
         "generated": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         "root": cfg.root, "tools": adapters.tools(), "org": {"name": oi["name"], "id8": oi["id8"]}, "orgs": oi["orgs"],
@@ -633,7 +659,7 @@ def _cached_lists(cfg, rels):
     lists, missing = {}, []
     for r in rels:
         c = cache["projects"].get(abs_of(cfg, r))
-        if c and c.get("plugins") is not None:
+        if c and c.get("plugins") is not None and _same_tools(c, adapters.tool_key()):
             lists[r] = c["plugins"]
         elif os.path.isdir(abs_of(cfg, r)):
             missing.append(r)
@@ -767,7 +793,7 @@ def do_inline(cfg, rel, kind, ident, value, out=print, apply=True):
         out("value must be on, off or clear")
         return 2
     ident = norm_conn(ident) if kind == "connector" else ident
-    if foreign_tool(ident):
+    if foreign_tool(ident) and not adapters.managed(ident):
         out("%s is reserved for another tool (%s:) and is not supported yet; "
             "inline exceptions only apply to %s ids" % (ident, foreign_tool(ident), L("product")))
         return 2
@@ -867,12 +893,13 @@ def check_path(path, hook=False):
     ap = abs_of(cfg, key)
     st = A().read_project(ap)
     ep = st["plugins_enabled"]
-    want = [p for p in des["plugins"] if not A().is_self(p) and not A().is_global(p)]
+    mine = adapters.primary().owns  # read_project is the primary adapter's; other tools are checked by scan
+    want = [p for p in des["plugins"] if mine(p) and not A().is_self(p) and not A().is_global(p)]
     plug_on = [p for p in want if not ep.get(p)]
     plug_off = [p for p, v in ep.items() if v and p not in want and not A().is_global(p)]
     act_off = set(st["connectors_off"])
-    c_off = sorted(set(des["connectors_off"]) - act_off)
-    c_on = sorted(act_off & set(des["connectors_on"]))
+    c_off = sorted(c for c in set(des["connectors_off"]) - act_off if mine(c))
+    c_on = sorted(c for c in act_off & set(des["connectors_on"]) if mine(c))
     bits = []
     if des["unknown"]:
         bits.append("unknown profile(s) %s" % ", ".join(des["unknown"]))

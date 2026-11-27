@@ -60,7 +60,7 @@ def update_capabilities(cfg, lists, oi, connectors, profiles, complete=True):
             for kind, ids in (("plugin", p["plugins"] + p["deny_plugins"]),
                               ("connector", p["connectors"] + p["deny_connectors"])):
                 for i in ids:
-                    if i not in caps and not foreign_tool(i):
+                    if i not in caps and (not foreign_tool(i) or adapters.managed(i)):
                         caps[i] = _new_cap(kind, "active", now, [], seen=False)
         data = {"capabilities": caps}
         save_caps(cfg, data, strict=False)
@@ -106,7 +106,7 @@ def update_capabilities(cfg, lists, oi, connectors, profiles, complete=True):
                     changed = True
                 continue
             # never-seen items (a profile names them, nothing installed them yet) are not gone
-            if e.get("status") == "active" and e.get("last_seen") and not foreign_tool(i):
+            if e.get("status") == "active" and e.get("last_seen") and (not foreign_tool(i) or adapters.managed(i)):
                 e["status"] = "gone"
                 changed = True
     if changed:

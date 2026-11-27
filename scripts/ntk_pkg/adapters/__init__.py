@@ -6,17 +6,20 @@ first, Claude Code; `<tool>:...` ids to the adapter named `<tool>`). The engine
 talks to `get()`, a `Fleet`: it has the Adapter interface and sends each call to
 the right adapter.
 
-What routes today:
+What routes:
 - id calls (is_self, is_global, set_global, installable, missing_hint, describe,
   is_account_scoped) go to the id's owner;
 - plan and apply split a row by owner, so each adapter only sees its own items
   and only runs its own acts;
-- account_wide and list_plugins are joined across adapters.
+- load_state returns a FleetState: the primary adapter's state (so code that
+  reads it directly keeps working) carrying every other adapter's state;
+  connectors_off, connectors_mixed and stale_entries route each part to its
+  adapter;
+- account_wide, list_plugins, list_available and discover_capabilities are
+  joined across adapters (each adapter keeps only ids it owns).
 
-Still read from the primary adapter only (until a second adapter defines its
-own state, P1): load_state, connectors_off, read_project, list_available,
-account_info, stale_entries, discover_capabilities. Connectors are plain names,
-which the id rule gives to the primary adapter.
+From the primary adapter only: read_project (the SessionStart hook is Claude
+Code's, and file-only) and account_info.
 """
 from .base import Adapter  # noqa: F401
 from .claude_code import ClaudeCodeAdapter
@@ -74,6 +77,25 @@ def _view(row, ad):
     return v
 
 
+class FleetState(dict):
+    """The primary adapter's state, plus `others`: {adapter name: its state}."""
+    def __init__(self, primary_state, others=None):
+        dict.__init__(self, primary_state or {})
+        self.others = others or {}
+
+
+def _state_for(state, a):
+    if a is primary():
+        return state
+    return getattr(state, "others", {}).get(a.name)
+
+
+def tool_key():
+    """Names of the adapters in use, stored with cached lists: a list fetched
+    with a different set of adapters is stale."""
+    return [a.name for a in all()]
+
+
 def _act_owner(a):
     return owner(a["item"])
 
@@ -129,6 +151,62 @@ class Fleet(Adapter):
             out += [i for i in a.account_wide() if i not in out]
         return out
 
+    def list_available(self, root):
+        """Connector names: the primary adapter's, then each other adapter's ids.
+        None when the primary list can't be read (a partial list would make its
+        connectors look removed)."""
+        ads = all()
+        res = ads[0].list_available(root)
+        if not res or len(ads) == 1:
+            return res
+        res = list(res)
+        for a in ads[1:]:
+            res += [n for n in (a.list_available(root) or []) if a.owns(n) and n not in res]
+        return res
+
+    def discover_capabilities(self, lists, account, connectors):
+        seen = {}
+        for a in all():
+            for i, e in (a.discover_capabilities(lists, account, connectors) or {}).items():
+                if owner(i) is a:
+                    seen[i] = e
+        return seen
+
+    def load_state(self):
+        ads = all()
+        return FleetState(ads[0].load_state(), {a.name: a.load_state() for a in ads[1:]})
+
+    def connectors_off_by(self, state, path):
+        """{adapter name: connector names off for `path`, or None when that
+        adapter can't control connectors there (e.g. no project for the folder)}."""
+        return {a.name: a.connectors_off(_state_for(state, a), path) for a in all()}
+
+    def connectors_off(self, state, path):
+        out = []
+        for v in self.connectors_off_by(state, path).values():
+            out += [n for n in (v or []) if n not in out]
+        return out
+
+    def connectors_mixed(self, state, path):
+        """Connectors forced off for `path` by another folder sharing the tool's
+        project: reported as mixed, not as drift apply could fix."""
+        out = set()
+        for a in all():
+            out |= set(a.connectors_mixed(_state_for(state, a), path) or ())
+        return out
+
+    def uncontrolled_hint(self, name):
+        for a in all():
+            if a.name == name:
+                return a.uncontrolled_hint()
+        return ""
+
+    def stale_entries(self, state, root):
+        out = []
+        for a in all():
+            out += a.stale_entries(_state_for(state, a), root) or []
+        return out
+
     def list_plugins(self, path):
         """The primary adapter's list (None if it can't be read) plus every
         other available adapter's (skipped when unreadable)."""
@@ -162,26 +240,11 @@ class Fleet(Adapter):
         return rc
 
     # --- primary adapter only (see the module docstring) ------------------
-    def list_available(self, root):
-        return primary().list_available(root)
-
     def read_project(self, path):
         return primary().read_project(path)
 
-    def load_state(self):
-        return primary().load_state()
-
-    def connectors_off(self, state, path):
-        return primary().connectors_off(state, path)
-
     def account_info(self):
         return primary().account_info()
-
-    def stale_entries(self, state, root):
-        return primary().stale_entries(state, root)
-
-    def discover_capabilities(self, lists, account, connectors):
-        return primary().discover_capabilities(lists, account, connectors)
 
 
 FLEET = Fleet()
