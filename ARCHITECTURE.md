@@ -14,6 +14,7 @@ scripts/ntk_pkg/
   engine.py      evaluate desired vs actual, scan, plan/apply, profile and project edits,
                  the SessionStart check, snapshot
   lifecycle.py   capabilities.json registry, inbox, adopt / ignore / retire
+  history.py     undo: records the data files before each change, restores them
   server.py      HTTP server for the page: 127.0.0.1, Host check, per-run token, API routes
   cli.py         argparse and subcommand dispatch
   adapters/

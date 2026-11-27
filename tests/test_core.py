@@ -11,7 +11,7 @@ import time
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
-from ntk_pkg import config, engine, lifecycle, model, server  # noqa: E402
+from ntk_pkg import config, engine, history, lifecycle, model, server  # noqa: E402
 from ntk_pkg.adapters import claude_code as cc  # noqa: E402
 
 
@@ -571,6 +571,7 @@ class TestGlobalPlugins(Env):
         jdump(d, os.path.join(self.data, "profiles.json"))
 
     def lists_for_all(self, items):
+        self.lists[self.root] = [dict(i) for i in items]  # global state is read once, from the root
         for r in ("app", "other"):
             self.lists[os.path.join(self.root, r)] = [dict(i) for i in items]
 
@@ -620,6 +621,72 @@ class TestGlobalPlugins(Env):
         with contextlib.redirect_stdout(out):
             engine.check_path(os.path.join(self.root, "other"))
         self.assertNotIn("plugin(s)", out.getvalue())
+
+
+class TestHistory(Env):
+    """Every change to ntk's data is recorded; undo restores it (and is undoable)."""
+
+    def edit(self, *a):
+        cfg = config.load_config()
+        with history.recording(cfg, "profile " + " ".join(a)):
+            engine.profile_edit(cfg, *a, apply=False, out=lambda m: None)
+
+    def prof(self):
+        return jload(os.path.join(self.data, "profiles.json"))["profiles"]["py"]["plugins"]
+
+    def test_record_undo_and_redo(self):
+        cfg = config.load_config()
+        self.edit("py", "add", "plugin", "z@x")
+        self.assertIn("z@x", self.prof())
+        es = history.entries(cfg)
+        self.assertEqual([e["label"] for e in es], ["profile py add plugin z@x"])
+        rc, e = history.undo(cfg, out=lambda m: None)
+        self.assertEqual(rc, 0)
+        self.assertNotIn("z@x", self.prof())
+        self.assertIsNone(history.latest_undoable(cfg))  # the only change is undone
+        undo_entry = history.entries(cfg)[0]
+        self.assertEqual(undo_entry["kind"], "undo")
+        history.undo(cfg, undo_entry["id"], out=lambda m: None)  # redo
+        self.assertIn("z@x", self.prof())
+
+    def test_no_change_no_entry_and_scans_dont_count(self):
+        cfg = config.load_config()
+        with history.recording(cfg, "nothing"):
+            pass
+        with history.recording(cfg, "a scan"):
+            engine.scan(cfg, fresh=True)  # rewrites capabilities.json last_seen only
+        with history.recording(cfg, "a scan again"):
+            engine.scan(cfg, fresh=True)
+        self.assertEqual([e["label"] for e in history.entries(cfg)], ["a scan"])  # first scan creates the file
+
+    def test_undo_to_a_point_reverts_later_changes(self):
+        cfg = config.load_config()
+        self.edit("py", "add", "plugin", "y@x")
+        first = history.entries(cfg)[0]["id"]
+        self.edit("py", "add", "plugin", "z@x")
+        history.undo(cfg, first, out=lambda m: None)
+        self.assertNotIn("y@x", self.prof())
+        self.assertNotIn("z@x", self.prof())
+
+    def test_adding_an_ignored_capability_warns(self):
+        cfg = config.load_config()
+        engine.scan(cfg, fresh=True)
+        lifecycle.set_cap_status(cfg, "b@x", "plugin", "ignored")
+        out = []
+        engine.profile_edit(cfg, "py", "add", "plugin", "b@x", apply=False, out=out.append)
+        self.assertTrue(any(l.startswith("warning: b@x was ignored") for l in out))
+
+    def test_capability_status_is_restored_but_last_seen_kept(self):
+        cfg = config.load_config()
+        engine.scan(cfg, fresh=True)
+        with history.recording(cfg, "ignore a@x"):
+            lifecycle.set_cap_status(cfg, "a@x", "plugin", "ignored")
+        history.undo(cfg, out=lambda m: None)
+        self.assertEqual(jload(self.capf)["capabilities"]["a@x"]["status"], "active")
+
+    def setUp(self):
+        super().setUp()
+        self.capf = os.path.join(self.data, "capabilities.json")
 
 
 class TestServer(Env):

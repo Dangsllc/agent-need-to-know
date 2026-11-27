@@ -138,6 +138,7 @@ td.path small{display:block;color:var(--muted);font-weight:400;max-width:220px;w
     <span class="spacer"></span>
     <input type="search" id="q" placeholder="Filter projects" aria-label="Filter projects">
     <select id="sf" aria-label="Status filter"><option value="">All statuses</option><option>ok</option><option>drift</option><option>missing</option><option>new</option><option>gone</option><option>error</option></select>
+    <button class="btn" id="undo" type="button" disabled>Undo</button>
     <button class="btn" id="refresh" type="button">Refresh</button>
   </div>
   <div class="msg" id="msg" role="status"></div>
@@ -364,6 +365,10 @@ function render(){
   ["q","sf"].forEach(function(i){ document.getElementById(i).classList.toggle("hide", tab!=="projects"); });
   var o = state.org;
   document.getElementById("org").textContent = "Logged in to " + (o.name||"unknown org") + (o.id8 ? " ("+o.id8+")" : "") + (RO ? "  |  snapshot " : "  |  updated ") + (state.generated||"").replace("T"," ").slice(0,16);
+  var ub = document.getElementById("undo"), u = state.undo;
+  ub.disabled = RO || !u || !!busy.undo;
+  ub.textContent = busy.undo ? "Undoing..." : "Undo";
+  ub.title = u ? "Undo: " + u.label + " (" + (u.time||"").replace("T"," ").slice(0,16) + "), then re-apply every project. The undo can be undone too (ntk history)." : "Nothing to undo";
   var rb = document.getElementById("refresh"); rb.disabled = !!busy.refresh;
   rb.textContent = busy.refresh ? "Refreshing..." : "Refresh";
   var chips = document.getElementById("chips"); chips.textContent="";
@@ -760,7 +765,11 @@ window.addEventListener("hashchange", function(){ tab = tabFromHash(); render();
 document.getElementById("q").addEventListener("input", render);
 document.getElementById("sf").addEventListener("change", render);
 document.getElementById("refresh").addEventListener("click", function(){ load(true); });
-if(RO){ document.getElementById("refresh").classList.add("hide"); render(); }
+document.getElementById("undo").addEventListener("click", function(){
+  var u = state && state.undo; if(!u) return;
+  act("undo", [["/api/undo",{id:u.id}]], "Undoing: "+u.label);
+});
+if(RO){ document.getElementById("refresh").classList.add("hide"); document.getElementById("undo").classList.add("hide"); render(); }
 else {
   load(false);
   setInterval(function(){ if(document.visibilityState==="visible" && !anyBusy() && !menu && !pendingEdit && !showNewForm && !capSel && !capEdit) load(false); }, 30000);

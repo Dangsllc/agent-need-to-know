@@ -4,7 +4,7 @@ import json
 import os
 import sys
 
-from . import model
+from . import history, model
 from .config import config_path, load_config
 from .engine import (apply_all, check_path, do_apply, do_attach, do_inline, profile_default,
                      profile_delete, profile_edit, profile_new, render_table, scan, snapshot)
@@ -81,6 +81,10 @@ def build_parser():
     i.add_argument("value", choices=["on", "off", "clear"])
     i.add_argument("--no-apply", action="store_true")
     sub.add_parser("snapshot")
+    sub.add_parser("history", help="list recorded changes, newest first")
+    u = sub.add_parser("undo", help="undo the last change (or go back to before <id>), then re-apply")
+    u.add_argument("id", nargs="?")
+    u.add_argument("--dry-run", action="store_true")
     v = sub.add_parser("serve")
     v.add_argument("--port", type=int, default=8765)
     v.add_argument("--no-open", action="store_true")
@@ -88,7 +92,7 @@ def build_parser():
 
 
 # commands that only read: a data file from a newer ntk is a warning, not an error
-READ_ONLY = ("scan", "inbox", "snapshot", "serve")
+READ_ONLY = ("scan", "inbox", "snapshot", "serve", "history")
 
 
 def main(argv=None):
@@ -122,6 +126,37 @@ def _dispatch(ap, args):
     cfg = need_config()
     if args.cmd not in READ_ONLY and not (args.cmd == "capability" and args.capcmd == "list"):
         model.assert_writable(cfg)
+    if args.cmd == "history":
+        es = history.entries(cfg)
+        if not es:
+            print("no recorded changes yet")
+        for e in es:
+            flag = " (undone)" if e.get("undone") else ""
+            print("%s  %s  %s%s" % (e["id"], e["time"][:16].replace("T", " "), e["label"], flag))
+        return 0
+    if args.cmd == "undo":
+        rc, e = history.undo(cfg, args.id, dry=args.dry_run)
+        if e is None or args.dry_run or rc:
+            return rc
+        return apply_all(cfg)
+    if args.cmd in READ_ONLY or getattr(args, "dry_run", False) or args.cmd == "apply" \
+            or (args.cmd == "capability" and args.capcmd == "list"):
+        return _run(ap, args, cfg)
+    with history.recording(cfg, _label(args)):
+        return _run(ap, args, cfg)
+
+
+def _label(args):
+    """A short description of a command for `ntk history`."""
+    skip = {"cmd", "capcmd", "no_apply", "dry_run", "func"}
+    parts = [args.cmd] + ([args.capcmd] if getattr(args, "capcmd", None) else [])
+    for k, v in vars(args).items():
+        if k not in skip and v not in (None, False, "") and not k.startswith("_"):
+            parts.append(str(v))
+    return " ".join(parts)
+
+
+def _run(ap, args, cfg):
     if args.cmd == "scan":
         st = scan(cfg, fresh=args.fresh)
         if args.json:

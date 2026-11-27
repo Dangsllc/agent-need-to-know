@@ -266,12 +266,7 @@ def capability_retire(cfg, cid, dry=False, apply=True, out=print):
         save_projects(cfg, d)
     log_change(cfg, "(capability)", cid, "-", "retired (profiles: %s)" % ",".join(hit))
     out("retired %s (removed from profiles: %s; inline in: %s)" % (cid, ", ".join(hit) or "none", ", ".join(inline_hit) or "none"))
-    rc = 0
-    if apply:
-        ctx = {}
-        for r in rels:
-            if os.path.isdir(abs_of(cfg, r)):
-                rc = _engine().do_apply(cfg, r, out=out, ctx=ctx) or rc
+    rc = _engine()._apply_many(cfg, rels, out) if apply else 0
     set_cap_status(cfg, cid, kind, "retired")
     return rc, [], hit
 

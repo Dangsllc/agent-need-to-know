@@ -112,8 +112,14 @@ All run as `python3 scripts/ntk.py <command>` (or `ntk <command>` once the launc
 | `capability ignore <id>` | Remove it from the inbox |
 | `capability retire <id> [--dry-run]` | Remove it everywhere, apply, mark retired |
 | `capability list [--status S]` | List the registry |
+| `history` | List recorded changes, newest first |
+| `undo [id] [--dry-run]` | Undo the last change (or go back to before `<id>`, reverting everything after it), then apply every project. An undo is recorded too, so `undo <its id>` redoes |
 | `snapshot` | Write `CONSOLE.md` and a read-only `CONSOLE.html` to `data_dir` |
 | `serve [--port 8765] [--no-open]` | The local page (Projects, Profiles, Capabilities tabs) |
+
+**Undo.** Every command and page action that changes `profiles.json`, `projects.json` or a capability's status first copies those files to `data_dir/history/<id>/` (last 100 kept). `undo` puts them back and re-applies, so plugins, connectors and global plugins follow; the page has an Undo button for the last change. Changes made outside ntk (running `claude plugin` by hand, editing settings files) aren't recorded.
+
+**Global plugins.** Claude Code's built-in plugins (`<name>@builtin`) have one switch shared by every project. ntk shows them once, above the projects, sets them once when every profile agrees (put them in a default profile for on, in none for off), and reports profiles that disagree instead of flipping them.
 
 Missing plugins that come from a marketplace are installed with `claude plugin install <id> --scope local`. Plugins that only exist on a claude.ai account (`@synced`) cannot be installed from here and are reported with a hint.
 

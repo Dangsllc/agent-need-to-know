@@ -6,7 +6,10 @@
   - they never count as per-project drift or missing, and nothing installs or switches them per project (`check` ignores them too);
   - `scan` reports each one once (`globals` in `--json`; a `global:` line when it needs attention): ok, needs on/off, split (profiles disagree, so nothing changes) or unavailable;
   - `apply --all` sets each one once, at user scope, only when every profile agrees; `apply <path>` explains instead of switching it;
-  - the console shows them once, in a Global plugins strip above the projects, instead of in every row.
+  - the console shows them once, in a Global plugins strip above the projects, instead of in every row;
+  - a profile edit, attach, detach, inline or capability change sets affected global plugins right away, with one line of output instead of one per project.
+- **Warning when a profile grants an ignored or retired capability.**
+- **Undo.** Every command and page action that changes `profiles.json`, `projects.json` or a capability's status (not `last_seen` churn from scans) is recorded in `data_dir/history/` with the files as they were before. `ntk history` lists them; `ntk undo` reverts the newest change and re-applies every project; `ntk undo <id>` goes back to before that change, reverting everything after it. An undo is itself recorded, so it can be redone. The page has an Undo button with the change it will undo in its tooltip.
 - **Fix: switching between claude.ai accounts no longer marks capabilities gone.** Each login only sees its own org's synced plugins and connectors. `seen_on_orgs` is now merged across scans instead of replaced, and an item seen only on another account is left active when it is absent from the current login. Items an earlier scan wrongly marked gone return to active on the next scan, so `capability retire` on the gone list can't strip profile grants that belong to the other account.
 
 ## 1.0.0
