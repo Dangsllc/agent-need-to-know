@@ -15,7 +15,8 @@ from ntk_pkg import config, engine, lifecycle  # noqa: E402
 from ntk_pkg.adapters import claude_code as cc  # noqa: E402
 
 VARS = ("NTK_CONFIG", "DEVCONSOLE_CONFIG", "NTK_CLAUDE_JSON", "DEVCONSOLE_CLAUDE_JSON", "NTK_CLAUDE_HOME",
-        "DEVCONSOLE_CLAUDE_HOME", "NTK_USER_SETTINGS", "DEVCONSOLE_USER_SETTINGS", "HOME")
+        "DEVCONSOLE_CLAUDE_HOME", "NTK_USER_SETTINGS", "DEVCONSOLE_USER_SETTINGS", "HOME",
+        "XDG_CONFIG_HOME")
 
 
 class Home(unittest.TestCase):
@@ -28,7 +29,7 @@ class Home(unittest.TestCase):
             os.environ.pop(k, None)
         os.environ["HOME"] = self.t
         self.old = os.path.join(self.t, ".claude", "devconsole")
-        self.new = os.path.join(self.t, ".claude", "agent-need-to-know")
+        self.new = os.path.join(self.t, ".config", "ntk")
         self.data = os.path.join(self.t, "data")
         os.makedirs(self.data)
 
@@ -57,7 +58,7 @@ class TestConfigLocation(Home):
         self.assertEqual(config.load_config().data_dir, self.data)
         notes = config.legacy_notes()
         self.assertEqual(len(notes), 1)
-        self.assertIn("agent-need-to-know", notes[0])
+        self.assertIn("~/.config/ntk/", notes[0])
         self.assertFalse(os.path.exists(self.new))  # nothing moved or created by reading
 
     def test_new_config_wins_over_old(self):
@@ -66,11 +67,12 @@ class TestConfigLocation(Home):
         self.assertEqual(config.config_path(), os.path.join(self.new, "config.json"))
         self.assertEqual(config.legacy_notes(), [])
 
-    def test_state_files_read_old_write_new(self):
+    def test_state_files_follow_legacy_config(self):
         self.put_config(self.old)
         jdump({"date": "2000-01-01"}, os.path.join(self.old, ".capabilities-hint.json"))
         self.assertEqual(config.state_read(".capabilities-hint.json"), os.path.join(self.old, ".capabilities-hint.json"))
-        self.assertEqual(config.state_write(".capabilities-hint.json"), os.path.join(self.new, ".capabilities-hint.json"))
+        # config lives in the legacy dir, so state is written next to it
+        self.assertEqual(config.state_write(".capabilities-hint.json"), os.path.join(self.old, ".capabilities-hint.json"))
         config.atomic_write(config.state_write(".capabilities-hint.json"), '{"date": "2001-01-01"}')
         self.assertEqual(jload(config.state_read(".capabilities-hint.json"))["date"], "2001-01-01")
 

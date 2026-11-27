@@ -7,8 +7,22 @@
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PORT="${NTK_PORT:-${DEVCONSOLE_PORT:-8765}}"
 URL="http://127.0.0.1:$PORT/"
-STATE="${HOME}/.claude/agent-need-to-know"
-OLDSTATE="${HOME}/.claude/devconsole"
+# Same lookup as scripts/ntk_pkg/config.py: an explicit NTK_CONFIG (or DEVCONSOLE_CONFIG) sets the dir;
+# otherwise the first of $XDG_CONFIG_HOME/ntk (absolute only, else ~/.config/ntk), then the two legacy dirs,
+# that holds config.json. Nothing is moved, so state files stay next to the config that was found.
+XDG_BASE="${XDG_CONFIG_HOME:-}"
+case "$XDG_BASE" in /*) ;; *) XDG_BASE="$HOME/.config" ;; esac
+XDG_DIR="$XDG_BASE/ntk"
+LEGACY_DIR="$HOME/.claude/agent-need-to-know"
+OLD_LEGACY_DIR="$HOME/.claude/devconsole"
+if [ -n "${NTK_CONFIG:-${DEVCONSOLE_CONFIG:-}}" ]; then
+  STATE="$(dirname "${NTK_CONFIG:-$DEVCONSOLE_CONFIG}")"
+else
+  STATE="$XDG_DIR"
+  for d in "$XDG_DIR" "$LEGACY_DIR" "$OLD_LEGACY_DIR"; do
+    if [ -f "$d/config.json" ]; then STATE="$d"; break; fi
+  done
+fi
 mkdir -p "$STATE"
 
 up() { curl -s -o /dev/null --max-time 1 "$URL"; }
@@ -30,7 +44,7 @@ case "$1" in
     ;;
   stop)
     stopped=""
-    for f in "$STATE/server.pid" "$OLDSTATE/server.pid"; do
+    for f in "$STATE/server.pid" "$XDG_DIR/server.pid" "$LEGACY_DIR/server.pid" "$OLD_LEGACY_DIR/server.pid"; do
       if [ -f "$f" ] && kill "$(cat "$f")" 2>/dev/null; then rm -f "$f"; stopped=1; fi
     done
     if [ -z "$stopped" ] && { pkill -f "ntk.py serve" || pkill -f "devconsole.py serve"; }; then stopped=1; fi

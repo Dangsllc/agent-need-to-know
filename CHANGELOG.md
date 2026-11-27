@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Neutral core (P0 of the lab-agnostic plan).** Output for Claude Code users is unchanged, apart from the config-location note described below.
+  - **Several adapters.** The engine drives a `Fleet` that routes each id to the adapter that owns it. `plan` and `apply` are split per adapter. A `<tool>:...` id in a profile is enforced once an adapter for that tool is installed; until then it is shown as before.
+  - **Declarations.** Each adapter declares `kinds`, `scopes`, `can_install` and `labels`. `scan --json` adds `tools`, and each plugin and connector in a row carries `tool`.
+  - **Wording.** Claude-specific words in messages and on the page now come from the Claude adapter's labels.
+  - **Config location.** The default moves to `~/.config/ntk/` (`$XDG_CONFIG_HOME/ntk`; `%APPDATA%\ntk` on Windows). `~/.claude/agent-need-to-know/` and `~/.claude/devconsole/` are still read, in that order, and state files are written next to whichever config was found. Nothing is moved; `scan` notes that the config can be moved.
 - **Fix: no false drift after a global or account-wide switch.** Such a switch changes what every project sees, so ntk now forgets its cached plugin lists (up to 5 minutes old) right after one. Before, the page's re-scan showed the old state as drift in every project. History labels for page actions now include the choice (for example `project-only`) and the policy value.
 - **Plugins switched on for the whole account.** An ordinary plugin installed at user level (Claude Code: `true` in the user settings' `enabledPlugins`) is on in every project, so profiles can't scope it. It used to show as drift in every project whose profiles don't grant it. Now:
   - it's reported once (`account_wide` in `scan --json`, an `account-wide:` line, an "On for the whole account" strip in the page and an inbox item), with no per-project drift;

@@ -13,14 +13,14 @@ Agent Need-to-Know (`ntk`) works like managing permissions in cloud environments
 
 Every enabled plugin and connector adds to every session's context in that folder, so attach the fewest profiles that cover the work.
 
-The engine is `${CLAUDE_PLUGIN_ROOT}/scripts/ntk.py`. Call it as `ENGINE` below. It reads and writes `profiles.json` and `projects.json` in the data_dir named in `~/.claude/agent-need-to-know/config.json`. Change state only through `ENGINE`, never by editing settings files. `ENGINE` is what keeps backups and the change log.
+The engine is `${CLAUDE_PLUGIN_ROOT}/scripts/ntk.py`. Call it as `ENGINE` below. It reads and writes `profiles.json` and `projects.json` in the data_dir named in its config file. Run `ENGINE config-path` to get that file's path (legacy `~/.claude/agent-need-to-know/` and `~/.claude/devconsole/` configs are still read). Change state only through `ENGINE`, never by editing settings files. `ENGINE` is what keeps backups and the change log.
 
 ## 0. First run (`init`, or no config file)
-If neither `~/.claude/agent-need-to-know/config.json` nor the older `~/.claude/devconsole/config.json` exists, ask two things:
+Run `ENGINE config-path`. If that file doesn't exist, this is a first run, so ask two things:
 1. Which folder holds your projects (the root)?
-2. Where should profiles live (the data_dir)? The default is `~/.claude/agent-need-to-know/`.
+2. Where should profiles live (the data_dir)? The default is the folder that holds the config path.
 
-Write `{"root": ..., "data_dir": ...}` to the config. Copy `${CLAUDE_PLUGIN_ROOT}/templates/*.example.json` into data_dir as `profiles.json`/`projects.json` if they're absent. Run `ENGINE scan`, then offer to walk through the projects it marks `new`, one at a time.
+Write `{"root": ..., "data_dir": ...}` to exactly that config path, creating its folder first. Copy `${CLAUDE_PLUGIN_ROOT}/templates/*.example.json` into data_dir as `profiles.json`/`projects.json` if they're absent. Run `ENGINE scan`, then offer to walk through the projects it marks `new`, one at a time.
 
 ## 1. Look before asking
 In the current folder (or the one named), find out:

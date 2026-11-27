@@ -10,11 +10,17 @@ You are choosing the smallest set of plugins and connectors that covers a projec
 Use the need-to-know skill's `references/rules.md` for the file formats and resolution rules, and its `references/apply.md` to write changes. Every write is previewed first.
 
 ## 0. First run (`init`, or no config)
-If neither `~/.claude/agent-need-to-know/config.json` nor `~/.claude/devconsole/config.json` exists, ask:
-1. Which folder holds your projects (the root)?
-2. Where should profiles live (the data_dir)? The default is `~/.claude/agent-need-to-know/`.
+Look for `config.json` in this order, and use the first match:
+1. The file named by the `NTK_CONFIG` environment variable, if it is set.
+2. The default folder: `%APPDATA%\ntk` on Windows when APPDATA is set; otherwise `$XDG_CONFIG_HOME/ntk` when XDG_CONFIG_HOME is an absolute path; otherwise `~/.config/ntk`.
+3. `~/.claude/agent-need-to-know/` (legacy).
+4. `~/.claude/devconsole/` (legacy).
 
-Write `{"root": "...", "data_dir": "..."}` to `~/.claude/agent-need-to-know/config.json`. If data_dir has no `profiles.json` or `projects.json`, copy them from `${CLAUDE_PLUGIN_ROOT}/templates/profiles.example.json` and `projects.example.json`. Then list the root's top-level folders and offer to set them up one at a time.
+If none has a `config.json`, this is a first run, so ask:
+1. Which folder holds your projects (the root)?
+2. Where should profiles live (the data_dir)? The default is the default folder in step 2.
+
+Write `{"root": "...", "data_dir": "..."}` to `config.json` in the default folder in step 2, creating the folder first. If data_dir has no `profiles.json` or `projects.json`, copy them from `${CLAUDE_PLUGIN_ROOT}/templates/profiles.example.json` and `projects.example.json`. Then list the root's top-level folders and offer to set them up one at a time.
 
 ## 1. Look before asking
 In the current folder (or the one named), find out:

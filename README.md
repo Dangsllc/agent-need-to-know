@@ -29,7 +29,7 @@ Local checkout: `claude plugin marketplace add /path/to/agent-need-to-know`.
 
 ## First run
 
-In a Claude Code session run `/project-setup init`. It asks for two folders, then writes `~/.claude/agent-need-to-know/config.json` and copies the starter `profiles.json` and `projects.json` from `templates/` into your data folder:
+In a Claude Code session run `/project-setup init`. It asks for two folders, then writes `~/.config/ntk/config.json` (under `$XDG_CONFIG_HOME/ntk/` when that is set, or `%APPDATA%\ntk` on Windows) and copies the starter `profiles.json` and `projects.json` from `templates/` into your data folder:
 
 | Setting | Meaning |
 |---|---|
@@ -42,7 +42,7 @@ You can write the config by hand instead (set `NTK_CONFIG` to use another path):
 {"root": "~/code", "data_dir": "~/code/_ntk"}
 ```
 
-**Names, paths and the old working name.** The config lives in `~/.claude/agent-need-to-know/`. Installs from the working name `devconsole` keep working: if the new folder has no `config.json` and `~/.claude/devconsole/config.json` exists, it is read from there (nothing is moved automatically; `scan` and the page footer print a note, and you can move it by copying `config.json`). In `data_dir` the cache is `.ntk-cache.json` and the log `ntk.log`; an existing `.devconsole-cache.json` is read and an existing `devconsole.log` is still appended to. Environment overrides use the prefix `NTK_` (`NTK_CONFIG`, `NTK_CLAUDE_JSON`, `NTK_CLAUDE_HOME`, `NTK_USER_SETTINGS`, `NTK_PORT`); the old `DEVCONSOLE_*` names still work but are deprecated.
+**Names, paths and the old working name.** The config lives in `~/.config/ntk/` (or `$XDG_CONFIG_HOME/ntk/` when that is set to an absolute path). The older locations `~/.claude/agent-need-to-know/` and `~/.claude/devconsole/` are still read: the first of the three folders that has a `config.json` wins. Installs from the working name `devconsole` keep working this way (nothing is moved automatically; `scan` and the page footer print a note, and you can move it by copying `config.json`). In `data_dir` the cache is `.ntk-cache.json` and the log `ntk.log`; an existing `.devconsole-cache.json` is read and an existing `devconsole.log` is still appended to. Environment overrides use the prefix `NTK_` (`NTK_CONFIG`, `NTK_CLAUDE_JSON`, `NTK_CLAUDE_HOME`, `NTK_USER_SETTINGS`, `NTK_PORT`); the old `DEVCONSOLE_*` names still work but are deprecated.
 
 Then run `/ntk` (or `python3 scripts/ntk.py scan`). Folders without a profile show as `new`; `/project-setup` interviews you about a folder and attaches the right profiles.
 
@@ -145,7 +145,7 @@ Missing plugins that come from a marketplace are installed with `claude plugin i
 ## Uninstall
 
 1. Remove the plugin: `/plugin uninstall agent-need-to-know@agent-need-to-know` (or `claude plugin uninstall agent-need-to-know@agent-need-to-know`).
-2. Optional: delete `~/.claude/agent-need-to-know/` (config and hint markers) and your `data_dir` (profiles, projects, log, backups).
+2. Optional: delete `~/.config/ntk/` (config and hint markers), the legacy `~/.claude/agent-need-to-know/` or `~/.claude/devconsole/` folder if present, and your `data_dir` (profiles, projects, log, backups).
 
 ntk leaves the settings it applied in place, which is what you want if you are only removing the tool. To hand a project back to Claude Code's defaults, undo these by hand:
 

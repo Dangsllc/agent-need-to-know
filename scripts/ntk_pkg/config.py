@@ -14,8 +14,21 @@ def env(name, default=None):
     return os.environ.get("NTK_" + name) or os.environ.get("DEVCONSOLE_" + name) or default
 
 
-NEW_DIR = "~/.claude/agent-need-to-know"
+XDG_DEFAULT = "~/.config/ntk"
+NEW_DIR = "~/.claude/agent-need-to-know"  # earlier default; read as a fallback, written to only if config lives there
 OLD_DIR = "~/.claude/devconsole"  # the working name's directory; read as a fallback only
+
+
+def _xdg_dir():
+    """Tool-neutral default: $XDG_CONFIG_HOME/ntk (if absolute), %APPDATA%\\ntk on Windows, else ~/.config/ntk."""
+    if os.name == "nt":
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            return os.path.join(appdata, "ntk")
+    x = os.environ.get("XDG_CONFIG_HOME")
+    if x and os.path.isabs(x):
+        return os.path.join(x, "ntk")
+    return os.path.expanduser(XDG_DEFAULT)
 
 
 def _new_dir():
@@ -26,31 +39,46 @@ def _old_dir():
     return os.path.expanduser(OLD_DIR)
 
 
+def _search_dirs():
+    return [_xdg_dir(), _new_dir(), _old_dir()]
+
+
+def _resolved_dir():
+    """First search dir that has config.json; the XDG dir if none does."""
+    for d in _search_dirs():
+        if os.path.exists(os.path.join(d, "config.json")):
+            return d
+    return _xdg_dir()
+
+
 def config_path():
-    """NTK_CONFIG (or deprecated DEVCONSOLE_CONFIG), else the new default; if only the
-    old default exists it is read from there. Nothing is moved automatically."""
+    """NTK_CONFIG (or deprecated DEVCONSOLE_CONFIG), else config.json from the XDG dir, then
+    ~/.claude/agent-need-to-know, then ~/.claude/devconsole; the XDG path if none exists.
+    Nothing is moved automatically."""
     e = env("CONFIG")
     if e:
         return e
-    new = os.path.join(_new_dir(), "config.json")
-    old = os.path.join(_old_dir(), "config.json")
-    return old if (not os.path.exists(new) and os.path.exists(old)) else new
+    return os.path.join(_resolved_dir(), "config.json")
 
 
 def state_dir():
-    """Where hint and state files are written: next to an explicit config, else the new dir."""
+    """Where hint and state files are written: next to an explicit config, else the directory
+    config.json resolved to (so legacy installs keep their files together), else the XDG dir."""
     e = env("CONFIG")
-    return os.path.dirname(e) if e else _new_dir()
+    return os.path.dirname(e) if e else _resolved_dir()
 
 
 def state_read(name):
-    """Path to read a state file from: the new location, else the old one if it has it."""
-    p = os.path.join(state_dir(), name)
-    if not os.path.exists(p) and not env("CONFIG"):
-        old = os.path.join(_old_dir(), name)
-        if os.path.exists(old):
-            return old
-    return p
+    """Path to read a state file from: the dir state is written to (so a write is seen by the
+    next read), else another search dir that has it (an older ntk wrote it there), else the
+    write path."""
+    if env("CONFIG"):
+        return os.path.join(state_dir(), name)
+    for d in [state_dir()] + [x for x in _search_dirs() if x != state_dir()]:
+        p = os.path.join(d, name)
+        if os.path.exists(p):
+            return p
+    return os.path.join(state_dir(), name)
 
 
 def state_write(name):
@@ -58,14 +86,18 @@ def state_write(name):
 
 
 def legacy_notes():
-    """Notes for scan and the page footer when settings still live in the old location."""
+    """Notes for scan and the page footer when settings still live in a legacy location."""
     if env("CONFIG"):
         return []
-    if config_path() == os.path.join(_old_dir(), "config.json"):
+    d = _resolved_dir()
+    shown = {_new_dir(): NEW_DIR, _old_dir(): OLD_DIR}.get(d)
+    if shown:
+        x = _xdg_dir()
+        home = os.path.expanduser("~")
+        xs = "~" + x[len(home):] if x.startswith(home + os.sep) else x
         return ["Config is read from %s; it can be moved to %s (copy config.json, then remove the old folder)."
-                % (OLD_DIR + "/", NEW_DIR + "/")]
+                % (shown + "/", xs + "/")]
     return []
-
 
 
 def read_json(path, default=None):

@@ -30,10 +30,20 @@ Rule: core modules never shell out and never read or write an agent tool's own f
 
 ## The adapter interface
 
-Defined in `adapters/base.py`; `adapters.get()` returns the adapter the engine drives. Methods:
+Defined in `adapters/base.py`. The registry in `adapters/__init__.py` holds every adapter: `all()` lists the available ones (the first, Claude Code, is always included), `owner(id)` names the one that manages an id, and `get()` returns the `Fleet` the engine drives. The Fleet has the same interface and routes:
+
+- calls about one id (`is_self`, `is_global`, `set_global`, `installable`, `missing_hint`, `describe`) go to that id's owner;
+- `plan` and `apply` split each row by owner, so an adapter only sees and changes its own items;
+- `account_wide` and `list_plugins` are joined across adapters;
+- `load_state`, `connectors_off`, `read_project`, `list_available`, `account_info`, `stale_entries` and `discover_capabilities` still come from the first adapter only, until a second adapter defines its own state (P1).
+
+Profiles enforce a `<tool>:...` id only when an available adapter owns it (`model.resolve(..., managed=)`); otherwise it stays in `foreign`, shown but not enforced. Each plugin and connector in a row carries `tool`, and `scan()` returns `tools`: each adapter's declaration.
+
+Declarations (class attributes): `kinds` (`plugin`, `mcp`, `skill`, `instructions`), `scopes` (`project`, `global`, `account`), `can_install`, and `labels` (the words the page and messages use for this tool's plugins, connectors and accounts). Methods:
 
 | Method | Purpose |
 |---|---|
+| `available()`, `declaration()` | whether the tool is installed here (file checks only); the declaration for the page |
 | `owns(id)`, `is_self(id)` | the id rule; ntk's own plugin is never managed |
 | `list_available(root)` | connector names available to the account, or `None` |
 | `list_plugins(path)` | plugins and their enabled state for a project, or `None` |
@@ -41,7 +51,7 @@ Defined in `adapters/base.py`; `adapters.get()` returns the adapter the engine d
 | `load_state()`, `connectors_off(state, path)` | one read of the tool's global state per scan |
 | `account_info()`, `stale_entries()`, `describe()` | org names, folders the tool still remembers, descriptions |
 | `discover_capabilities(...)` | everything installed or available, for the registry |
-| `installable(id)`, `missing_hint(id, account)` | what Apply can install, what to tell the user otherwise |
+| `installable(id)`, `missing_hint(id, account)`, `unreadable_hint()` | what Apply can install, what to tell the user otherwise, what to suggest when the tool can't be read |
 | `is_global(id)`, `set_global(id, on, out)` | plugins the tool keeps one switch for, shared by every project (Claude Code's `@builtin` plugins); the core reports them once and sets them once, never per project |
 | `plan(row, only)` | pure: acts that make actual match desired for one evaluated project |
 | `apply(cfg, rel, row, acts, only, ctx, out)` | execute acts, log each change, back up what it edits |
@@ -52,14 +62,15 @@ A row (see `engine.evaluate`) holds desired and actual state per plugin and conn
 
 1. Create `adapters/<tool>.py` with a subclass of `Adapter`. Set `name` to the id prefix (`codex`, `gemini`) so it owns ids such as `codex:mcp:github`.
 2. Implement reading (`list_*`, `read_project`) from that tool's CLI or config files, and `plan`/`apply` to make its settings match the resolved allow list. Back up any file you edit and log through `config.log_change`.
-3. Register it in `adapters/__init__.py`.
-4. Make the engine route each capability id to the adapter that owns it. Today it drives `adapters.get()`, one adapter, and the Claude adapter ignores ids with a `<tool>:` prefix. Dropping the single-adapter assumption in `engine.py` is the main core change a second adapter needs; the data files already hold such ids.
+3. Set `kinds`, `scopes`, `can_install` and `labels`, and implement `available()`.
+4. Register it in `adapters/__init__.py`. The Fleet then routes its ids to it (see above); `tests/test_routing.py` shows a fake second adapter end to end.
+5. Give it its own state and connectors: the Fleet methods that still read the first adapter only are where P1 work goes.
 
 Profiles stay tool-neutral: a profile may list `a@market` (Claude Code), `Docs` (a connector) and `codex:mcp:github` side by side.
 
 ## Data files and the schema contract
 
-All live in `data_dir` (from `~/.claude/agent-need-to-know/config.json`, or the old `~/.claude/devconsole/config.json` when the new one is absent; `NTK_*` environment variables override paths, with deprecated `DEVCONSOLE_*` fallbacks).
+All live in `data_dir` (from `config.json` in `$XDG_CONFIG_HOME/ntk/` (default `~/.config/ntk/`; `%APPDATA%\ntk\` on Windows), else the first of `~/.claude/agent-need-to-know/` and the older `~/.claude/devconsole/` that has one, with state files written next to wherever config was found; `NTK_*` environment variables override paths, with deprecated `DEVCONSOLE_*` fallbacks).
 
 | File | Holds |
 |---|---|

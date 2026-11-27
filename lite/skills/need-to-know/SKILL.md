@@ -10,7 +10,7 @@ You are applying minimum necessary to agent tooling. Each project's sessions sho
 Rules and file formats: `references/rules.md`. Writing changes safely: `references/apply.md`. Read both before your first change in a session.
 
 ## Where things are
-- **Config:** `~/.claude/agent-need-to-know/config.json` → `{"root": "...", "data_dir": "..."}`. If it is missing, check the older `~/.claude/devconsole/config.json`. If neither exists, hand off to the project-setup skill (`init`).
+- **Config:** `config.json` → `{"root": "...", "data_dir": "..."}`, found in this order: the file named by `NTK_CONFIG` if set; else the first of the default folder (`%APPDATA%\ntk` on Windows when APPDATA is set, else `$XDG_CONFIG_HOME/ntk` when XDG_CONFIG_HOME is an absolute path, else `~/.config/ntk`), `~/.claude/agent-need-to-know/` or `~/.claude/devconsole/` that has a `config.json`. If none has one, hand off to the project-setup skill (`init`).
 - **Data, in data_dir:** `profiles.json` (what each profile grants), `projects.json` (which profiles each project has), `ntk.log` (change log), `backups/`.
 - **What Claude Code actually loads:**
   - Plugins: `claude plugin list --json`, run with the project folder as the working directory. Each entry has `id` and `enabled`.
