@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Antigravity adapter.** Antigravity's MCP servers can be granted per project like connectors, and are switched off with project deny rules. Its plugins are global switches. Folders with no Antigravity project are noted, not shown as drift. `scan --json` rows gain `tool_notes`, and connectors gain `mixed`.
 - **Neutral core (P0 of the lab-agnostic plan).** Output for Claude Code users is unchanged, apart from the config-location note described below.
   - **Several adapters.** The engine drives a `Fleet` that routes each id to the adapter that owns it. `plan` and `apply` are split per adapter. A `<tool>:...` id in a profile is enforced once an adapter for that tool is installed; until then it is shown as before.
   - **Declarations.** Each adapter declares `kinds`, `scopes`, `can_install` and `labels`. `scan --json` adds `tools`, and each plugin and connector in a row carries `tool`.
