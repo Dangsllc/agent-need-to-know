@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Fix: switching between claude.ai accounts no longer marks capabilities gone.** Each login only sees its own org's synced plugins and connectors. `seen_on_orgs` is now merged across scans instead of replaced, and an item seen only on another account is left active when it is absent from the current login. Items an earlier scan wrongly marked gone return to active on the next scan, so `capability retire` on the gone list can't strip profile grants that belong to the other account.
+
 ## 1.0.0
 
 First public release, as **Agent Need-to-Know** (short command `ntk`). The project was developed under the working name `devconsole`; every user-facing name changed at release:
