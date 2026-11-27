@@ -163,6 +163,13 @@ def is_global(pid):
     return pid.endswith("@builtin")
 
 
+def account_wide():
+    """Non-built-in plugins switched on in the user settings: on in every project."""
+    s = read_json(user_settings_path(), {}) or {}
+    ep = s.get("enabledPlugins") if isinstance(s.get("enabledPlugins"), dict) else {}
+    return sorted(i for i, v in ep.items() if v is True and not is_global(i) and not _is_self(i))
+
+
 def set_global(pid, on, out):
     cmd = ["claude", "plugin", "enable" if on else "disable", pid, "--scope", "user"]
     r = run(cmd, os.path.expanduser("~"), 60)
@@ -379,6 +386,9 @@ class ClaudeCodeAdapter(Adapter):
 
     def set_global(self, pid, on, out):
         return set_global(pid, on, out)
+
+    def account_wide(self):
+        return account_wide()
 
     def installable(self, pid):
         return installable(pid)

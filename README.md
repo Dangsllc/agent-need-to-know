@@ -112,8 +112,10 @@ All run as `python3 scripts/ntk.py <command>` (or `ntk <command>` once the launc
 | `capability ignore <id>` | Remove it from the inbox |
 | `capability retire <id> [--dry-run]` | Remove it everywhere, apply, mark retired |
 | `capability list [--status S]` | List the registry |
-| `history` | List recorded changes, newest first |
-| `undo [id] [--dry-run]` | Undo the last change (or go back to before `<id>`, reverting everything after it), then apply every project. An undo is recorded too, so `undo <its id>` redoes |
+| `account-wide <id> project-only\|everywhere [--dry-run]` | Decide about a plugin switched on for the whole account: off for the account and on only where profiles grant it, or add it to the default profile |
+| `policy account-wide ask\|contain\|allow` | What happens to plugins switched on for the whole account: report and ask (default), make them project-only on `apply --all`, or leave them on |
+| `history [-v]` | List recorded changes, newest first; `-v` adds the switches each one made |
+| `undo [id] [--only] [--dry-run]` | Undo the last change (or go back to before `<id>`, reverting everything after it), then apply every project. `--only` undoes just `<id>` and keeps later changes (refused if a later change touched the same thing). An undo is recorded too, so it can be undone |
 | `snapshot` | Write `CONSOLE.md` and a read-only `CONSOLE.html` to `data_dir` |
 | `serve [--port 8765] [--no-open]` | The local page (Projects, Profiles, Capabilities tabs) |
 

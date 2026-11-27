@@ -8,7 +8,7 @@ import threading
 import webbrowser
 from urllib.parse import parse_qs, urlparse
 
-from .engine import (apply_all, do_apply, do_attach, do_inline, load_page, profile_default, profile_edit,
+from .engine import (account_wide_decide, set_account_wide_policy, undo_change, apply_all, do_apply, do_attach, do_inline, load_page, profile_default, profile_edit,
                      profile_new, scan)
 from .lifecycle import capability_adopt, capability_ignore, capability_retire
 from . import history
@@ -81,6 +81,14 @@ def handle_post(cfg, path, body, msgs):
         if dry:
             out["affected"] = affected
         return 200, out
+    if path == "/api/account-wide":
+        if not S(body.get("id")) or body.get("choice") not in ("project-only", "everywhere"):
+            return _bad()
+        return 200, {"rc": account_wide_decide(cfg, body["id"], body["choice"], out=msgs.append)}
+    if path == "/api/policy":
+        if body.get("account_wide") not in ("ask", "contain", "allow"):
+            return _bad()
+        return 200, {"rc": set_account_wide_policy(cfg, body["account_wide"], out=msgs.append)}
     if path == "/api/profile-new":
         if not S(body.get("name")) or not NAME_RE.match(body["name"]):
             return _bad("invalid profile name")
@@ -106,11 +114,11 @@ def handle_undo(cfg, body, msgs):
     hid = body.get("id")
     if hid is not None and not (isinstance(hid, str) and hid):
         return _bad()
+    if body.get("mode") not in (None, "to", "only") or (body.get("mode") == "only" and not hid):
+        return _bad()
     assert_writable(cfg)
-    rc, e = history.undo(cfg, hid, out=msgs.append)
-    if e is None or rc:
-        return 200, {"rc": rc}
-    return 200, {"rc": apply_all(cfg, out=lambda m: msgs.append(m) if ("FAILED" in m or m.startswith(("(all", "totals"))) else None)}
+    keep = lambda m: msgs.append(m) if ("FAILED" in m or m.startswith(("(all", "(account", "totals", "undid", "can't", "nothing", "no history", "already"))) else None
+    return 200, {"rc": undo_change(cfg, hid, only=body.get("mode") == "only", out=keep)}
 
 
 def make_handler(cfg, token):

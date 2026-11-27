@@ -77,6 +77,11 @@ class Adapter(object):
         profile agrees, sets them once with set_global."""
         return False
 
+    def account_wide(self):
+        """Ordinary plugins switched on for every project at once (a user-level
+        install), which profiles can't scope until the user decides. -> [id]."""
+        return []
+
     def set_global(self, pid, on, out):
         """Switch a global plugin on or off for every project. -> rc."""
         raise NotImplementedError

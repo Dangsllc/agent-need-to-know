@@ -668,6 +668,48 @@ class TestHistory(Env):
         self.assertNotIn("y@x", self.prof())
         self.assertNotIn("z@x", self.prof())
 
+    def describe(self, text):
+        cfg = config.load_config()
+        f = os.path.join(self.data, "profiles.json")
+        with history.recording(cfg, "describe " + text):
+            d = jload(f)
+            d["profiles"]["py"]["description"] = text
+            jdump(d, f)
+
+    def test_undo_just_one_change_keeps_later_ones(self):
+        cfg = config.load_config()
+        self.edit("py", "add", "plugin", "y@x")
+        first = history.entries(cfg)[0]["id"]
+        self.edit("py", "add", "plugin", "z@x")
+        rc, _ = history.undo_only(cfg, first, out=lambda m: None)
+        self.assertEqual(rc, 0)
+        self.assertNotIn("y@x", self.prof())
+        self.assertIn("z@x", self.prof())
+        self.assertTrue([e for e in history.entries(cfg) if e["id"] == first][0]["undone"])
+        redo = history.entries(cfg)[0]
+        self.assertEqual(redo["kind"], "undo")
+        history.undo_only(cfg, redo["id"], out=lambda m: None)  # redo just that
+        self.assertIn("y@x", self.prof())
+        self.assertIn("z@x", self.prof())
+
+    def test_undo_just_one_change_refuses_when_changed_again_later(self):
+        cfg = config.load_config()
+        self.describe("one")
+        first = history.entries(cfg)[0]["id"]
+        self.describe("two")
+        out = []
+        rc, _ = history.undo_only(cfg, first, out=out.append)
+        self.assertEqual(rc, 1)
+        self.assertIn("changed again later", out[0])
+        self.assertEqual(jload(os.path.join(self.data, "profiles.json"))["profiles"]["py"]["description"], "two")
+
+    def test_recording_keeps_the_change_log_lines(self):
+        cfg = config.load_config()
+        self.edit("py", "add", "plugin", "y@x")
+        log = history.entries(cfg)[0]["log"]
+        self.assertTrue(any(l["item"] == "plugin:y@x" for l in log))
+        self.assertEqual(history.change_log(cfg)[0]["entry"], history.entries(cfg)[0]["id"])
+
     def test_adding_an_ignored_capability_warns(self):
         cfg = config.load_config()
         engine.scan(cfg, fresh=True)
@@ -687,6 +729,55 @@ class TestHistory(Env):
     def setUp(self):
         super().setUp()
         self.capf = os.path.join(self.data, "capabilities.json")
+
+
+class TestAccountWide(Env):
+    """A plugin switched on for the whole account: one decision, not drift in every project."""
+
+    def setUp(self):
+        super().setUp()
+        jdump({"enabledPlugins": {"b@x": True}}, os.path.join(os.path.dirname(self.cj), "user-settings.json"))
+        both = [{"id": "a@x", "enabled": True}, {"id": "b@x", "enabled": True}]
+        for r in (self.root, os.path.join(self.root, "app"), os.path.join(self.root, "other")):
+            self.lists[r] = [dict(i) for i in both]
+
+    def test_scan_reports_once_without_drift(self):
+        st = engine.scan(config.load_config(), fresh=True)
+        aw = st["account_wide"]
+        self.assertEqual([(a["id"], a["status"], a["wanted_by"]) for a in aw], [("b@x", "pending", ["app"])])
+        other = [r for r in st["projects"] if r["path"] == "other"][0]
+        self.assertNotIn("b@x", " ".join(other["drift"]))
+        self.assertEqual([p["state"] for p in other["plugins"] if p["id"] == "b@x"], ["account-wide"])
+        self.assertEqual(st["account_wide_policy"], "ask")
+
+    def test_project_only_is_recorded_and_undoable(self):
+        cfg = config.load_config()
+        with history.recording(cfg, "account-wide b@x project-only"):
+            rc = engine.account_wide_decide(cfg, "b@x", "project-only", out=lambda m: None)
+        self.assertEqual(rc, 0)
+        self.assertIn((["claude", "plugin", "disable", "b@x", "--scope", "user"]), [c for c, _ in self.cmds])
+        e = history.entries(cfg)[0]
+        self.assertEqual(e["label"], "account-wide b@x project-only")
+        self.assertEqual(e["files"], [])  # no data file changed, still recorded
+        self.cmds.clear()
+        engine.undo_change(cfg, e["id"], only=True, out=lambda m: None)
+        self.assertIn(["claude", "plugin", "enable", "b@x", "--scope", "user"], [c for c, _ in self.cmds])
+        undo = history.entries(cfg)[0]
+        self.assertTrue(any(l["where"] == "(account-wide)" for l in undo["log"]))  # so redo can switch it back
+
+    def test_keep_everywhere_adds_to_default_profile(self):
+        engine.account_wide_decide(config.load_config(), "b@x", "everywhere", out=lambda m: None)
+        self.assertIn("b@x", jload(os.path.join(self.data, "profiles.json"))["profiles"]["base"]["plugins"])
+
+    def test_contain_policy_acts_on_apply_all_and_allow_just_reports(self):
+        cfg = config.load_config()
+        engine.set_account_wide_policy(cfg, "contain", out=lambda m: None)
+        self.assertEqual(engine.scan(cfg, fresh=True)["account_wide"][0]["status"], "will-contain")
+        engine.apply_all(cfg, out=lambda m: None)
+        self.assertIn(["claude", "plugin", "disable", "b@x", "--scope", "user"], [c for c, _ in self.cmds])
+        engine.set_account_wide_policy(cfg, "allow", out=lambda m: None)
+        self.assertEqual(engine.scan(cfg, fresh=True)["account_wide"][0]["status"], "allowed")
+        self.assertEqual(jload(os.path.join(self.data, "profiles.json"))["account_wide_policy"], "allow")
 
 
 class TestServer(Env):
@@ -738,6 +829,18 @@ class TestServer(Env):
         self.assertEqual([a["path"] for a in r["affected"]], ["app"])
         self.assertNotIn("state", r)
         self.assertEqual(slurp(os.path.join(self.data, "profiles.json")), before)
+
+    def test_undo_over_http_records_and_reverts(self):
+        code, r = self.req("POST", "/api/profile", {"name": "py", "op": "add", "kind": "plugin", "id": "n@x"})
+        self.assertEqual(code, 200)
+        hs = r["state"]["history"]
+        self.assertEqual(hs[0]["label"], "profile add py plugin n@x (console)")
+        self.assertEqual(self.req("POST", "/api/undo", {"mode": "only"})[0], 400)  # only needs an id
+        code, r = self.req("POST", "/api/undo", {"id": hs[0]["id"], "mode": "only"})
+        self.assertEqual((code, r["ok"]), (200, True))
+        prof = jload(os.path.join(self.data, "profiles.json"))["profiles"]["py"]["plugins"]
+        self.assertNotIn("n@x", prof)
+        self.assertEqual(r["state"]["history"][0]["kind"], "undo")
 
     def test_attach_detach_inline_and_new_over_http(self):
         # the plugin list stub reports nothing missing for these ids, so applies are no-ops or stubbed

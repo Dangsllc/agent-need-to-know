@@ -6,7 +6,7 @@ import sys
 
 from . import history, model
 from .config import config_path, load_config
-from .engine import (apply_all, check_path, do_apply, do_attach, do_inline, profile_default,
+from .engine import (account_wide_decide, set_account_wide_policy, undo_change, apply_all, check_path, do_apply, do_attach, do_inline, profile_default,
                      profile_delete, profile_edit, profile_new, render_table, scan, snapshot)
 from .lifecycle import (capability_adopt, capability_ignore, capability_retire, list_caps,
                         show_inbox)
@@ -81,9 +81,18 @@ def build_parser():
     i.add_argument("value", choices=["on", "off", "clear"])
     i.add_argument("--no-apply", action="store_true")
     sub.add_parser("snapshot")
-    sub.add_parser("history", help="list recorded changes, newest first")
+    aw = sub.add_parser("account-wide", help="decide about a plugin switched on for the whole account")
+    aw.add_argument("ident")
+    aw.add_argument("choice", choices=["project-only", "everywhere"])
+    aw.add_argument("--dry-run", action="store_true")
+    po = sub.add_parser("policy", help="policy account-wide ask|contain|allow")
+    po.add_argument("which", choices=["account-wide"])
+    po.add_argument("value", choices=["ask", "contain", "allow"])
+    hp = sub.add_parser("history", help="list recorded changes, newest first")
+    hp.add_argument("-v", "--verbose", action="store_true", help="show the change-log lines of each")
     u = sub.add_parser("undo", help="undo the last change (or go back to before <id>), then re-apply")
     u.add_argument("id", nargs="?")
+    u.add_argument("--only", action="store_true", help="undo just that change, keeping later ones")
     u.add_argument("--dry-run", action="store_true")
     v = sub.add_parser("serve")
     v.add_argument("--port", type=int, default=8765)
@@ -133,13 +142,15 @@ def _dispatch(ap, args):
         for e in es:
             flag = " (undone)" if e.get("undone") else ""
             print("%s  %s  %s%s" % (e["id"], e["time"][:16].replace("T", " "), e["label"], flag))
+            if args.verbose:
+                for l in e.get("log") or []:
+                    print("      %s  %s  %s" % (l["where"], l["item"], l["change"]))
         return 0
     if args.cmd == "undo":
-        rc, e = history.undo(cfg, args.id, dry=args.dry_run)
-        if e is None or args.dry_run or rc:
-            return rc
-        return apply_all(cfg)
-    if args.cmd in READ_ONLY or getattr(args, "dry_run", False) or args.cmd == "apply" \
+        if args.only and not args.id:
+            ap.error("undo --only needs an id (see `ntk history`)")
+        return undo_change(cfg, args.id, only=args.only, dry=args.dry_run)
+    if args.cmd in READ_ONLY or getattr(args, "dry_run", False) \
             or (args.cmd == "capability" and args.capcmd == "list"):
         return _run(ap, args, cfg)
     with history.recording(cfg, _label(args)):
@@ -185,6 +196,15 @@ def _run(ap, args, cfg):
                       "split": "profiles disagree (wanted in %d project(s), not in %d); it is one switch for "
                                "every project, so put it in a default profile or in none",
                       "unavailable": "is wanted but this version of Claude Code doesn't offer it right now"}
+        AW_MSG = {"pending": "is on for the whole account, not just where profiles grant it (%d of %d projects); "
+                             "decide: `ntk account-wide %s project-only` or `... everywhere`",
+                  "will-contain": "is on for the whole account; the contain policy makes it project-only on the next "
+                                  "`ntk apply --all` (%d of %d projects grant it) %s",
+                  "allowed": "is on for the whole account (allowed by policy; %d of %d projects grant it) %s"}
+        for a in st.get("account_wide", []):
+            n = len(a["wanted_by"])
+            print("account-wide: %s %s" % (a["id"], AW_MSG[a["status"]] % (n, n + len(a["not_wanted_by"]),
+                                                                       a["id"] if a["status"] == "pending" else "")))
         for g in st.get("globals", []):
             if args.verbose or g["status"] != "ok":
                 msg = GLOBAL_MSG.get(g["status"], "%s, as profiles want" % ("on" if g["enabled"] else "off"))
@@ -222,6 +242,10 @@ def _run(ap, args, cfg):
         return profile_new(cfg, args.name, args.description, args.group, args.from_project)
     if args.cmd == "profile-delete":
         return profile_delete(cfg, args.name)
+    if args.cmd == "account-wide":
+        return account_wide_decide(cfg, args.ident, args.choice, dry=args.dry_run)
+    if args.cmd == "policy":
+        return set_account_wide_policy(cfg, args.value)
     if args.cmd == "inline":
         return do_inline(cfg, args.relpath, args.kind, args.ident, args.value, apply=not args.no_apply)
     if args.cmd == "snapshot":
