@@ -145,6 +145,17 @@ def _dispatch(ap, args):
                 print("  retired but seen again: %s %s" % (c["kind"], c["id"]))
         for m in st["missing"]:
             print("missing: %s in %s: %s" % (m["id"], ", ".join(m["projects"]), m["hint"]))
+        GLOBAL_MSG = {"needs-on": "is off; profiles want it on (`ntk apply --all` sets it)",
+                      "needs-off": "is on; no profile grants it (`ntk apply --all` sets it)",
+                      "split": "profiles disagree (wanted in %d project(s), not in %d); it is one switch for "
+                               "every project, so put it in a default profile or in none",
+                      "unavailable": "is wanted but this version of Claude Code doesn't offer it right now"}
+        for g in st.get("globals", []):
+            if args.verbose or g["status"] != "ok":
+                msg = GLOBAL_MSG.get(g["status"], "%s, as profiles want" % ("on" if g["enabled"] else "off"))
+                if g["status"] == "split":
+                    msg = msg % (len(g["wanted_by"]), len(g["not_wanted_by"]))
+                print("global: %s %s" % (g["id"], msg))
         for n in st.get("notes", []):
             print("note: " + n)
         for k in st["stale"]:

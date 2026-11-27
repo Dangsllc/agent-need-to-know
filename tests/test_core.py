@@ -560,6 +560,68 @@ class TestApplyAll(Env):
         self.assertTrue(any("unknown profile" in l for l in out))
 
 
+class TestGlobalPlugins(Env):
+    """Built-ins are one switch for every project: no per-project drift or
+    install, one summary, and apply --all sets them once when profiles agree."""
+
+    def set_profiles(self, base_plugins=(), py_plugins=("a@x",)):
+        d = json.loads(json.dumps(PROFILES))
+        d["profiles"]["base"]["plugins"] = list(base_plugins)
+        d["profiles"]["py"]["plugins"] = list(py_plugins)
+        jdump(d, os.path.join(self.data, "profiles.json"))
+
+    def lists_for_all(self, items):
+        for r in ("app", "other"):
+            self.lists[os.path.join(self.root, r)] = [dict(i) for i in items]
+
+    def test_global_on_everywhere_is_ok_and_never_per_project(self):
+        self.set_profiles(base_plugins=["g@builtin"])
+        self.lists_for_all([{"id": "a@x", "enabled": True}, {"id": "b@x", "enabled": True},
+                            {"id": "g@builtin", "enabled": False}])
+        st = engine.scan(config.load_config(), fresh=True)
+        g = {x["id"]: x for x in st["globals"]}["g@builtin"]
+        self.assertEqual(g["status"], "needs-on")
+        for row in st["projects"]:
+            gp = [p for p in row["plugins"] if p["id"] == "g@builtin"][0]
+            self.assertTrue(gp["global"])
+            self.assertNotIn("g@builtin", " ".join(row["drift"]))
+        out = []
+        engine.apply_all(config.load_config(), out=out.append)
+        local = [c for c, _ in self.cmds if "g@builtin" in c and "local" in c]
+        user = [c for c, _ in self.cmds if "g@builtin" in c and "user" in c]
+        self.assertEqual(local, [])
+        self.assertEqual(user, [["claude", "plugin", "enable", "g@builtin", "--scope", "user"]])
+        self.assertTrue(any(l.startswith("(all projects): global plugin g@builtin off->on") for l in out))
+
+    def test_split_profiles_change_nothing_and_say_so(self):
+        self.set_profiles(py_plugins=["a@x", "g@builtin"])  # only app has py
+        self.lists_for_all([{"id": "a@x", "enabled": True}, {"id": "b@x", "enabled": True},
+                            {"id": "g@builtin", "enabled": True}])
+        st = engine.scan(config.load_config(), fresh=True)
+        g = {x["id"]: x for x in st["globals"]}["g@builtin"]
+        self.assertEqual((g["status"], g["wanted_by"], g["not_wanted_by"]), ("split", ["app"], ["other"]))
+        out = []
+        engine.apply_all(config.load_config(), out=out.append)
+        self.assertFalse([c for c, _ in self.cmds if "g@builtin" in c])
+        self.assertTrue(any("g@builtin left on: profiles disagree" in l for l in out))
+
+    def test_unavailable_global_is_not_missing_or_installed(self):
+        self.set_profiles(base_plugins=["g@builtin"])
+        self.lists_for_all([{"id": "a@x", "enabled": True}, {"id": "b@x", "enabled": True}])
+        st = engine.scan(config.load_config(), fresh=True)
+        self.assertEqual({x["id"]: x for x in st["globals"]}["g@builtin"]["status"], "unavailable")
+        self.assertEqual(st["missing"], [])
+        engine.apply_all(config.load_config(), out=lambda m: None)
+        self.assertFalse([c for c, _ in self.cmds if "g@builtin" in c])
+
+    def test_check_ignores_globals(self):
+        self.set_profiles(base_plugins=["g@builtin"])
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            engine.check_path(os.path.join(self.root, "other"))
+        self.assertNotIn("plugin(s)", out.getvalue())
+
+
 class TestServer(Env):
     def setUp(self):
         super().setUp()

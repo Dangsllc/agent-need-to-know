@@ -155,6 +155,23 @@ def missing_hint(pid, oi):
 
 
 
+def is_global(pid):
+    """Claude Code's built-in plugins (`<name>@builtin`) ship inside Claude Code.
+    `claude plugin enable|disable --scope local` on one of them writes the user
+    settings, so the switch is shared by every project; they also come and go
+    with Claude Code's own availability checks and can't be installed."""
+    return pid.endswith("@builtin")
+
+
+def set_global(pid, on, out):
+    cmd = ["claude", "plugin", "enable" if on else "disable", pid, "--scope", "user"]
+    r = run(cmd, os.path.expanduser("~"), 60)
+    if r.returncode != 0:
+        out("FAILED %s: %s" % (" ".join(cmd), (r.stderr or r.stdout or "").strip()[:300]))
+        return 1
+    return 0
+
+
 def plan_for(row, only=None):
     """Actions that make actual match desired for one evaluated row."""
     acts = []
@@ -356,6 +373,12 @@ class ClaudeCodeAdapter(Adapter):
 
     def is_account_scoped(self, pid):
         return pid.endswith("@synced")
+
+    def is_global(self, pid):
+        return is_global(pid)
+
+    def set_global(self, pid, on, out):
+        return set_global(pid, on, out)
 
     def installable(self, pid):
         return installable(pid)

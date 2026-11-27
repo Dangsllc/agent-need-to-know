@@ -69,6 +69,13 @@ td.path small{display:block;color:var(--muted);font-weight:400;max-width:220px;w
 .sw.conn.on{background:var(--ok-bg);color:var(--ok);border-color:transparent}
 .sw.inl{border-color:var(--warn)}
 .sw.sel{outline:2px solid var(--accent);outline-offset:1px}
+.sw.glob{border-style:dashed}
+.sw.glob.on{border-style:solid;border-color:var(--accent)}
+.gmark{display:inline-block;margin-left:4px;font-size:11px;opacity:.85}
+.gstrip .glabel{font-weight:700}
+.gstrip .sws{max-width:none;margin-top:6px}
+.gstrip .sw{cursor:default}
+.gstrip ul{margin:6px 0 0}
 .badge{display:inline-block;margin-left:5px;padding:0 5px;border-radius:4px;background:var(--warn-bg);color:var(--warn);font-size:10px;font-weight:700;line-height:14px;text-transform:uppercase;letter-spacing:.03em}
 .sw.on .badge{background:var(--warn);color:#fff}
 .pchips{display:flex;flex-wrap:wrap;gap:4px;align-items:center;max-width:380px}
@@ -258,6 +265,7 @@ function popover(p, kind, id, it){
   var d = el("div","pop"); d.setAttribute("role","menu");
   var head = el("h3",null,(kind==="plugin"?"Plugin ":"Connector ")+id+": "+(on?"on":"off")+(it.state==="missing"?" (missing)":"")); d.appendChild(head);
   if(it.state==="missing") d.appendChild(el("div","hint bad", (p.missing_hints||{})[id] || "not installed"));
+  if(it.global) d.appendChild(el("div","hint","Global plugin: Claude Code has one switch for it, shared by every project. Grant it in a default profile (on everywhere) or in none (off everywhere); a project-only grant can't take effect."));
   function opts(){ var o = el("div","opts"); d.appendChild(o); return o; }
   var own = p.attached || [];
   if(it.inline){
@@ -385,6 +393,33 @@ function renderBanners(){
     });
     p.appendChild(ul); bn.appendChild(p);
   }
+  var gl = state.globals||[];
+  if(gl.length){
+    var gi = gl.filter(function(g){ return g.status!=="ok"; });
+    var gp = el("div","panel gstrip");
+    gp.appendChild(el("span","glabel","Global plugins"));
+    gp.appendChild(el("span","hint"," one switch each, shared by every project. Grant them in a default profile (on everywhere) or in none (off everywhere). "));
+    var why = {"needs-on":"off; profiles want it on. Apply all sets it.", "needs-off":"on; no profile grants it. Apply all sets it.",
+               "unavailable":"wanted, but this version of Claude Code doesn't offer it right now."};
+    var row = el("div","sws");
+    gl.forEach(function(g){
+      var cls = "sw glob " + (g.status==="unavailable" ? "missing" : (g.enabled ? "on" : "off")) + (g.status==="ok"||g.status==="unavailable" ? "" : " drift");
+      var t = g.status==="split" ? "profiles disagree: wanted in "+g.wanted_by.length+" project(s), not in "+g.not_wanted_by.length+". Put it in a default profile or in none."
+            : (why[g.status] || ((g.enabled?"on":"off")+" everywhere, as profiles want."));
+      var c = el("span", cls, short(g.id)); c.appendChild(el("span","gmark","\u{1F310}\uFE0E"));
+      c.title = g.id + "\n" + t + (g.status==="split" ? "\nWanted by:\n"+g.wanted_by.join("\n") : ""); row.appendChild(c);
+    });
+    gp.appendChild(row);
+    if(gi.length){
+      var gu = el("ul");
+      gi.forEach(function(g){
+        var t = g.status==="split" ? "profiles disagree (wanted in "+g.wanted_by.length+" project(s), not in "+g.not_wanted_by.length+"). Put it in a default profile or in none." : why[g.status];
+        gu.appendChild(el("li",null, g.id+": "+t));
+      });
+      gp.appendChild(gu);
+    }
+    bn.appendChild(gp);
+  }
   if((state.stale||[]).length){
     var d = el("details","panel"); d.appendChild(el("summary",null,"Stale Claude project entries ("+state.stale.length+", folder gone, report only)"));
     var u2 = el("ul"); state.stale.forEach(function(s){ var li=el("li"); li.appendChild(el("code",null,s)); u2.appendChild(li); });
@@ -453,6 +488,7 @@ function row(p){
     if(x.state==="off" && !x.inline && !x.denied_by.length) return;
     shown[x.id] = 1;
     var cls, extra = "";
+    if(x.global){ shown[x.id] = 1; return; }  // one switch for every project: shown once, in the Global strip
     if(x.state==="missing"){ cls="missing"; extra=(p.missing_hints||{})[x.id]||"not installed"; }
     else if(x.desired){ cls="on"; if(x.state==="needs-on"){ cls+=" drift"; extra="wanted on, currently off"; } }
     else { cls="off"; if(x.state==="needs-off"){ cls+=" drift"; extra="wanted off, currently on"; } }

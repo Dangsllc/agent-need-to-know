@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Global plugins.** Claude Code's built-in plugins (`<name>@builtin`) have one switch shared by every project: `claude plugin enable|disable --scope local` on one of them writes the user settings. ntk used to toggle them per project, so applying one project flipped them for all, and a built-in that Claude Code stopped offering was reported as missing in every project and sent to `claude plugin install`. Now:
+  - they never count as per-project drift or missing, and nothing installs or switches them per project (`check` ignores them too);
+  - `scan` reports each one once (`globals` in `--json`; a `global:` line when it needs attention): ok, needs on/off, split (profiles disagree, so nothing changes) or unavailable;
+  - `apply --all` sets each one once, at user scope, only when every profile agrees; `apply <path>` explains instead of switching it;
+  - the console shows them once, in a Global plugins strip above the projects, instead of in every row.
 - **Fix: switching between claude.ai accounts no longer marks capabilities gone.** Each login only sees its own org's synced plugins and connectors. `seen_on_orgs` is now merged across scans instead of replaced, and an item seen only on another account is left active when it is absent from the current login. Items an earlier scan wrongly marked gone return to active on the next scan, so `capability retire` on the gone list can't strip profile grants that belong to the other account.
 
 ## 1.0.0

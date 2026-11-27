@@ -41,6 +41,7 @@ Defined in `adapters/base.py`; `adapters.get()` returns the adapter the engine d
 | `account_info()`, `stale_entries()`, `describe()` | org names, folders the tool still remembers, descriptions |
 | `discover_capabilities(...)` | everything installed or available, for the registry |
 | `installable(id)`, `missing_hint(id, account)` | what Apply can install, what to tell the user otherwise |
+| `is_global(id)`, `set_global(id, on, out)` | plugins the tool keeps one switch for, shared by every project (Claude Code's `@builtin` plugins); the core reports them once and sets them once, never per project |
 | `plan(row, only)` | pure: acts that make actual match desired for one evaluated project |
 | `apply(cfg, rel, row, acts, only, ctx, out)` | execute acts, log each change, back up what it edits |
 

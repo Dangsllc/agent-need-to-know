@@ -66,6 +66,15 @@ def evaluate(cfg, rel, entry, profiles, defaults, cj, plugin_list, connectors_av
     for i in ids:
         want = i in want_plugins
         en, pr = i in enabled, i in present
+        iv = "on" if i in inl.get("plugins_on", []) else ("off" if i in inl.get("plugins_off", []) else None)
+        if ad.is_global(i):
+            # one switch shared by every project: never per-project drift or missing;
+            # reported once in scan()["globals"] and set by apply --all
+            st = ("global-on" if en else "global-off") if pr else ("global-unavailable" if scanned else "on?")
+            res["plugins"].append({"id": i, "desired": want, "enabled": en, "present": pr, "state": st,
+                                   "sources": sp.get(i, []), "denied_by": dp.get(i, []), "inline": iv,
+                                   "global": True})
+            continue
         if want and scanned and not pr:
             st = "missing"
             res["missing"].append(i)
@@ -79,9 +88,9 @@ def evaluate(cfg, rel, entry, profiles, defaults, cj, plugin_list, connectors_av
             res["drift"].append("plugin %s is on, profiles do not grant it" % i)
         else:
             st = "off"
-        iv = "on" if i in inl.get("plugins_on", []) else ("off" if i in inl.get("plugins_off", []) else None)
         res["plugins"].append({"id": i, "desired": want, "enabled": en, "present": pr, "state": st,
-                               "sources": sp.get(i, []), "denied_by": dp.get(i, []), "inline": iv})
+                               "sources": sp.get(i, []), "denied_by": dp.get(i, []), "inline": iv,
+                               "global": False})
     avail = set(connectors_avail or [])
     c_on, c_off = set(des["connectors_on"]), set(des["connectors_off"])
     sc, dc_ = des["sources"]["connector"], des["denied_by"]["connector"]
@@ -98,7 +107,8 @@ def evaluate(cfg, rel, entry, profiles, defaults, cj, plugin_list, connectors_av
     if not entry:  # no entry, so nothing is desired and nothing can drift
         res["drift"], res["missing"] = [], []
         for p in res["plugins"]:
-            p["state"] = "on" if p["enabled"] else p["state"]
+            if not p["global"]:
+                p["state"] = "on" if p["enabled"] else p["state"]
         for c in res["connectors"]:
             c["desired_off"] = c["actual_off"]
     if gone:
@@ -115,6 +125,38 @@ def evaluate(cfg, rel, entry, profiles, defaults, cj, plugin_list, connectors_av
     else:
         res["status"] = "ok"
     return res
+
+
+def global_summary(rows):
+    """One entry per global plugin across the managed projects (rows with a
+    profile entry and a folder): which want it on, which don't, and what to do.
+    status: ok | needs-on | needs-off | split (profiles disagree, so nothing is
+    changed) | unavailable (wanted, but this version of the tool doesn't offer it)."""
+    managed = [r for r in rows if r["status"] not in ("new", "gone")]
+    ids = sorted({p["id"] for r in rows for p in r["plugins"] if p.get("global")})
+    out = []
+    for i in ids:
+        want, rows_i = [], {}
+        for r in managed:
+            p = next((x for x in r["plugins"] if x["id"] == i), None)
+            rows_i[r["path"]] = p
+            if p and p["desired"]:
+                want.append(r["path"])
+        dont = [r["path"] for r in managed if r["path"] not in want]
+        seen = [p for r in rows for p in r["plugins"] if p["id"] == i and p["state"] != "on?"]
+        present = any(p["present"] for p in seen)
+        enabled = any(p["enabled"] for p in seen)
+        if want and not present and seen:
+            st = "unavailable"
+        elif want and dont:
+            st = "split"
+        elif want:
+            st = "ok" if enabled else "needs-on"
+        else:
+            st = "needs-off" if enabled else "ok"
+        out.append({"id": i, "status": st, "enabled": enabled, "present": present,
+                    "wanted_by": want, "not_wanted_by": dont})
+    return out
 
 
 def get_connectors(cfg, ctx=None, fresh=False):
@@ -205,7 +247,7 @@ def scan(cfg, fresh=False):
         "default_profiles": defaults, "profiles": prof_out,
         "known_plugins": known_plugins, "available_connectors": connectors,
         "counts": counts, "projects": rows, "stale": stale, "missing": miss_list,
-        "has_costs": costs is not None,
+        "has_costs": costs is not None, "globals": global_summary(rows),
         "capabilities": lifecycle.caps_view(caps, rows, profiles, oi, seen_ids),
         "warnings": list(model.WARNINGS), "notes": legacy_notes(),
         "inbox": {st: sorted(i for i, e in caps["capabilities"].items() if e["status"] == st) for st in ("new", "gone")},
@@ -221,6 +263,8 @@ def describe_act(a):
         return ("+plugin %s" if a["new"] == "on" else "-plugin %s") % a["item"]
     if a["kind"] == "connector":
         return "connector %s %s->%s" % (a["item"], a["old"], a["new"])
+    if a["kind"] == "global":
+        return "global plugin %s %s->%s (every project)" % (a["item"], a["old"], a["new"])
     return "missing %s (skipped)" % a["item"]
 
 
@@ -252,6 +296,11 @@ def do_apply(cfg, rel, dry=False, only=None, out=print, ctx=None):
     if err:
         out(err[0])
         return err[1]
+    for p in row["plugins"]:
+        if p.get("global") and p["present"] and p["desired"] != p["enabled"] and (not only or only == ("plugin", p["id"])):
+            out("%s: global plugin %s is %s, profiles here want it %s; it is one switch for every "
+                "project, so `ntk apply --all` sets it when all profiles agree"
+                % (rel, p["id"], "on" if p["enabled"] else "off", "on" if p["desired"] else "off"))
     if not acts:
         out("%s: nothing to change" % rel)
         return 0
@@ -273,6 +322,8 @@ def _tally(acts, t):
             k = "installs" if a["old"] == "absent" else ("enables" if a["new"] == "on" else "disables")
         elif a["kind"] == "connector":
             k = "connector changes"
+        elif a["kind"] == "global":
+            k = "global changes"
         else:
             k = "missing (skipped)"
         t[k] = t.get(k, 0) + 1
@@ -294,7 +345,7 @@ def apply_all(cfg, dry=False, out=print):
     get_connectors(cfg, ctx)
     if dry:
         out("(dry run: nothing will be changed)")
-    tot, failures, changed = {}, [], 0
+    tot, failures, changed, rows = {}, [], 0, []
     for rel in projects:
         if rel not in rels:
             out("%s: folder is gone (skipped)" % rel)
@@ -305,6 +356,7 @@ def apply_all(cfg, dry=False, out=print):
                 failures.append("%s: %s" % (rel, err[0]))
                 out("%s: FAILED %s" % (rel, err[0]))
                 continue
+            rows.append(row)
             out("%s: %s" % (rel, ", ".join(describe_act(a) for a in acts) or "ok"))
             if acts:
                 changed += 1
@@ -318,6 +370,18 @@ def apply_all(cfg, dry=False, out=print):
         except Exception as e:
             failures.append("%s: %s" % (rel, e))
             out("%s: FAILED %s" % (rel, e))
+    for g in global_summary(rows):
+        if g["status"] in ("needs-on", "needs-off"):
+            on = g["status"] == "needs-on"
+            a = {"kind": "global", "item": g["id"], "old": "off" if on else "on", "new": "on" if on else "off"}
+            out("(all projects): " + describe_act(a))
+            _tally([a], tot)
+            if not dry and A().set_global(g["id"], on, lambda m: out("  " + m)):
+                failures.append("global plugin %s: the command failed" % g["id"])
+        elif g["status"] == "split":
+            out("(all projects): global plugin %s left %s: profiles disagree (wanted by %d project(s), "
+                "not by %d); put it in a default profile or in none"
+                % (g["id"], "on" if g["enabled"] else "off", len(g["wanted_by"]), len(g["not_wanted_by"])))
     parts = ["%d %s" % (v, k) for k, v in sorted(tot.items())]
     out("totals: %d of %d project(s) %s%s" % (changed, len(projects), "would change" if dry else "changed",
                                               (": " + ", ".join(parts)) if parts else ""))
@@ -607,9 +671,9 @@ def check_path(path, hook=False):
     ap = abs_of(cfg, key)
     st = A().read_project(ap)
     ep = st["plugins_enabled"]
-    want = [p for p in des["plugins"] if not A().is_self(p)]
+    want = [p for p in des["plugins"] if not A().is_self(p) and not A().is_global(p)]
     plug_on = [p for p in want if not ep.get(p)]
-    plug_off = [p for p, v in ep.items() if v and p not in want]
+    plug_off = [p for p, v in ep.items() if v and p not in want and not A().is_global(p)]
     act_off = set(st["connectors_off"])
     c_off = sorted(set(des["connectors_off"]) - act_off)
     c_on = sorted(act_off & set(des["connectors_on"]))
