@@ -51,8 +51,10 @@ def owner(cid):
 
 
 def managed(cid):
-    """True when an available adapter manages `cid`: profiles enforce it."""
-    return owner(cid) is not None
+    """True when profiles enforce `cid`: the primary adapter owns it, or another
+    available adapter owns it and sets `enforce` (see Adapter.enforce)."""
+    o = owner(cid)
+    return o is not None and (o is primary() or bool(o.enforce))
 
 
 def tools():
@@ -83,7 +85,7 @@ class Fleet(Adapter):
 
     # --- routed by id -----------------------------------------------------
     def owns(self, cid):
-        return managed(cid)
+        return owner(cid) is not None
 
     def is_self(self, pid):
         o = owner(pid)

@@ -19,6 +19,7 @@ class FakeAdapter(Adapter):
     kinds = ("mcp",)
     scopes = ("project",)
     labels = {"plugins": "servers"}
+    enforce = True
 
     def __init__(self, on=None, avail=True):
         self.on = on or {}          # abs path -> [ids switched on]
@@ -84,6 +85,17 @@ class Routing(Env):
         r = engine._resolve(*self._profiles(), {"profiles": ["py"]})
         self.assertIn("fake:mcp:github", [f["id"] for f in r["foreign"]])
         self.assertNotIn("fake:mcp:github", r["plugins"])
+
+    def test_not_enforced_until_adapter_opts_in(self):
+        self.fake.enforce = False
+        try:
+            self.assertIs(adapters.owner("fake:mcp:github"), self.fake)
+            self.assertFalse(adapters.managed("fake:mcp:github"))
+            r = engine._resolve(*self._profiles(), {"profiles": ["py"]})
+            self.assertIn("fake:mcp:github", [f["id"] for f in r["foreign"]])
+            self.assertNotIn("fake:mcp:github", r["plugins"])
+        finally:
+            self.fake.enforce = True
 
     def _profiles(self):
         profiles, meta = model.load_profiles(engine.load_config())

@@ -69,14 +69,16 @@ def state_dir():
 
 
 def state_read(name):
-    """Path to read a state file from: the XDG dir, else a legacy dir that has it, else the XDG path."""
+    """Path to read a state file from: the dir state is written to (so a write is seen by the
+    next read), else another search dir that has it (an older ntk wrote it there), else the
+    write path."""
     if env("CONFIG"):
         return os.path.join(state_dir(), name)
-    for d in _search_dirs():
+    for d in [state_dir()] + [x for x in _search_dirs() if x != state_dir()]:
         p = os.path.join(d, name)
         if os.path.exists(p):
             return p
-    return os.path.join(_xdg_dir(), name)
+    return os.path.join(state_dir(), name)
 
 
 def state_write(name):

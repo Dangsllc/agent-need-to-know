@@ -19,7 +19,7 @@ A local tool that reads and edits which plugins and connectors Claude Code loads
 - `claude plugin list|enable|disable|install --scope local` and `claude mcp list`, run with arguments ntk builds from your profiles (no shell, no string interpolation into a shell).
 - `~/.claude.json`: only the claude.ai entries of `disabledMcpServers` for one project, after a backup, atomically, verified.
 - Read-only: Claude settings files (`enabledPlugins`) and org-sync plugin manifests.
-- Its own files in `data_dir` and `~/.claude/agent-need-to-know/`.
+- Its own files in `data_dir` and its config folder (`~/.config/ntk/` by default, or a legacy `~/.claude/agent-need-to-know/` or `~/.claude/devconsole/`).
 
 The SessionStart hook is file-only: it never runs `claude`, never opens a socket, and exits 0 on any error.
 

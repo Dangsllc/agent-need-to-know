@@ -33,6 +33,11 @@ class Adapter(object):
     #   (the tool's name in prose), brand (its short name), cli (its command),
     #   state_file (its per-user state file, named in "stale entry" reports)
     labels = {}
+    # profiles enforce this adapter's ids only when True. The Fleet still reads
+    # state (connectors off, the SessionStart check) from the first adapter only,
+    # so a second adapter that turned this on would show drift apply can't clear.
+    # Set it once the Fleet routes those reads to the adapter (P1).
+    enforce = False
 
     def available(self):
         """True if this tool is installed here. Only adapters after the first are

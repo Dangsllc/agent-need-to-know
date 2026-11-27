@@ -81,6 +81,7 @@ def build_parser():
     i.add_argument("value", choices=["on", "off", "clear"])
     i.add_argument("--no-apply", action="store_true")
     sub.add_parser("snapshot")
+    sub.add_parser("config-path", help="print where ntk reads (or would create) config.json")
     aw = sub.add_parser("account-wide", help="decide about a plugin switched on for the whole account")
     aw.add_argument("ident")
     aw.add_argument("choice", choices=["project-only", "everywhere"])
@@ -108,6 +109,9 @@ def main(argv=None):
     ap = build_parser()
     args = ap.parse_args(argv)
 
+    if args.cmd == "config-path":
+        print(config_path())
+        return 0
     if args.cmd == "check":
         try:
             check_path(args.path or os.getcwd(), args.hook)

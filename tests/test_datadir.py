@@ -58,6 +58,15 @@ class DataDirTests(unittest.TestCase):
         self.assertEqual(config.state_write("n"), os.path.join(self.old, "n"))
         self.assertIn("~/.claude/devconsole/", config.legacy_notes()[0])
 
+    def test_state_read_follows_writes(self):
+        # config in devconsole; an older ntk left a stale hint in agent-need-to-know
+        self.put(self.old)
+        self.put(self.mid, "hint")
+        self.assertEqual(config.state_read("hint"), os.path.join(self.mid, "hint"))  # read once
+        self.put(self.old, "hint")  # what state_write("hint") creates
+        self.assertEqual(config.state_write("hint"), os.path.join(self.old, "hint"))
+        self.assertEqual(config.state_read("hint"), os.path.join(self.old, "hint"))
+
     def test_xdg_wins(self):
         for d in (self.xdg, self.mid, self.old):
             self.put(d)
