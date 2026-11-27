@@ -106,8 +106,11 @@ def handle_undo(cfg, body, msgs):
     hid = body.get("id")
     if hid is not None and not (isinstance(hid, str) and hid):
         return _bad()
+    if body.get("mode") not in (None, "to", "only") or (body.get("mode") == "only" and not hid):
+        return _bad()
     assert_writable(cfg)
-    rc, e = history.undo(cfg, hid, out=msgs.append)
+    fn = history.undo_only if body.get("mode") == "only" else history.undo
+    rc, e = fn(cfg, hid, out=msgs.append)
     if e is None or rc:
         return 200, {"rc": rc}
     return 200, {"rc": apply_all(cfg, out=lambda m: msgs.append(m) if ("FAILED" in m or m.startswith(("(all", "totals"))) else None)}

@@ -668,6 +668,48 @@ class TestHistory(Env):
         self.assertNotIn("y@x", self.prof())
         self.assertNotIn("z@x", self.prof())
 
+    def describe(self, text):
+        cfg = config.load_config()
+        f = os.path.join(self.data, "profiles.json")
+        with history.recording(cfg, "describe " + text):
+            d = jload(f)
+            d["profiles"]["py"]["description"] = text
+            jdump(d, f)
+
+    def test_undo_just_one_change_keeps_later_ones(self):
+        cfg = config.load_config()
+        self.edit("py", "add", "plugin", "y@x")
+        first = history.entries(cfg)[0]["id"]
+        self.edit("py", "add", "plugin", "z@x")
+        rc, _ = history.undo_only(cfg, first, out=lambda m: None)
+        self.assertEqual(rc, 0)
+        self.assertNotIn("y@x", self.prof())
+        self.assertIn("z@x", self.prof())
+        self.assertTrue([e for e in history.entries(cfg) if e["id"] == first][0]["undone"])
+        redo = history.entries(cfg)[0]
+        self.assertEqual(redo["kind"], "undo")
+        history.undo_only(cfg, redo["id"], out=lambda m: None)  # redo just that
+        self.assertIn("y@x", self.prof())
+        self.assertIn("z@x", self.prof())
+
+    def test_undo_just_one_change_refuses_when_changed_again_later(self):
+        cfg = config.load_config()
+        self.describe("one")
+        first = history.entries(cfg)[0]["id"]
+        self.describe("two")
+        out = []
+        rc, _ = history.undo_only(cfg, first, out=out.append)
+        self.assertEqual(rc, 1)
+        self.assertIn("changed again later", out[0])
+        self.assertEqual(jload(os.path.join(self.data, "profiles.json"))["profiles"]["py"]["description"], "two")
+
+    def test_recording_keeps_the_change_log_lines(self):
+        cfg = config.load_config()
+        self.edit("py", "add", "plugin", "y@x")
+        log = history.entries(cfg)[0]["log"]
+        self.assertTrue(any(l["item"] == "plugin:y@x" for l in log))
+        self.assertEqual(history.change_log(cfg)[0]["entry"], history.entries(cfg)[0]["id"])
+
     def test_adding_an_ignored_capability_warns(self):
         cfg = config.load_config()
         engine.scan(cfg, fresh=True)
@@ -738,6 +780,18 @@ class TestServer(Env):
         self.assertEqual([a["path"] for a in r["affected"]], ["app"])
         self.assertNotIn("state", r)
         self.assertEqual(slurp(os.path.join(self.data, "profiles.json")), before)
+
+    def test_undo_over_http_records_and_reverts(self):
+        code, r = self.req("POST", "/api/profile", {"name": "py", "op": "add", "kind": "plugin", "id": "n@x"})
+        self.assertEqual(code, 200)
+        hs = r["state"]["history"]
+        self.assertEqual(hs[0]["label"], "profile add py plugin n@x (console)")
+        self.assertEqual(self.req("POST", "/api/undo", {"mode": "only"})[0], 400)  # only needs an id
+        code, r = self.req("POST", "/api/undo", {"id": hs[0]["id"], "mode": "only"})
+        self.assertEqual((code, r["ok"]), (200, True))
+        prof = jload(os.path.join(self.data, "profiles.json"))["profiles"]["py"]["plugins"]
+        self.assertNotIn("n@x", prof)
+        self.assertEqual(r["state"]["history"][0]["kind"], "undo")
 
     def test_attach_detach_inline_and_new_over_http(self):
         # the plugin list stub reports nothing missing for these ids, so applies are no-ops or stubbed

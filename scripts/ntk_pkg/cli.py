@@ -81,9 +81,11 @@ def build_parser():
     i.add_argument("value", choices=["on", "off", "clear"])
     i.add_argument("--no-apply", action="store_true")
     sub.add_parser("snapshot")
-    sub.add_parser("history", help="list recorded changes, newest first")
+    hp = sub.add_parser("history", help="list recorded changes, newest first")
+    hp.add_argument("-v", "--verbose", action="store_true", help="show the change-log lines of each")
     u = sub.add_parser("undo", help="undo the last change (or go back to before <id>), then re-apply")
     u.add_argument("id", nargs="?")
+    u.add_argument("--only", action="store_true", help="undo just that change, keeping later ones")
     u.add_argument("--dry-run", action="store_true")
     v = sub.add_parser("serve")
     v.add_argument("--port", type=int, default=8765)
@@ -133,9 +135,14 @@ def _dispatch(ap, args):
         for e in es:
             flag = " (undone)" if e.get("undone") else ""
             print("%s  %s  %s%s" % (e["id"], e["time"][:16].replace("T", " "), e["label"], flag))
+            if args.verbose:
+                for l in e.get("log") or []:
+                    print("      %s  %s  %s" % (l["where"], l["item"], l["change"]))
         return 0
     if args.cmd == "undo":
-        rc, e = history.undo(cfg, args.id, dry=args.dry_run)
+        if args.only and not args.id:
+            ap.error("undo --only needs an id (see `ntk history`)")
+        rc, e = (history.undo_only if args.only else history.undo)(cfg, args.id, dry=args.dry_run)
         if e is None or args.dry_run or rc:
             return rc
         return apply_all(cfg)

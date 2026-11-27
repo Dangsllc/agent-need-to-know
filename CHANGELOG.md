@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **History tab and undo per change.** The page has a History tab: every recorded change, newest first, with the switches it made (from the change log). Each line's menu offers **Undo just this change**, which keeps later changes and is refused with the reason when a later change touched the same thing, and **Go back to before this**, which also reverts the later ones. An undo line offers **Redo**. The full change log is below, each line linked to the change it was part of. CLI: `ntk history -v` and `ntk undo <id> --only`.
 - **Global plugins.** Claude Code's built-in plugins (`<name>@builtin`) have one switch shared by every project: `claude plugin enable|disable --scope local` on one of them writes the user settings. ntk used to toggle them per project, so applying one project flipped them for all, and a built-in that Claude Code stopped offering was reported as missing in every project and sent to `claude plugin install`. Now:
   - they never count as per-project drift or missing, and nothing installs or switches them per project (`check` ignores them too);
   - `scan` reports each one once (`globals` in `--json`; a `global:` line when it needs attention): ok, needs on/off, split (profiles disagree, so nothing changes) or unavailable;

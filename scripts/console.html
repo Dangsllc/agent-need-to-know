@@ -76,6 +76,11 @@ td.path small{display:block;color:var(--muted);font-weight:400;max-width:220px;w
 .gstrip .sws{max-width:none;margin-top:6px}
 .gstrip .sw{cursor:default}
 .gstrip ul{margin:6px 0 0}
+tr.undone td{color:var(--muted);text-decoration:line-through}
+tr.undone td:last-child,tr.undone td:nth-child(4){text-decoration:none}
+ul.efx{margin:0;padding-left:16px;font-size:12px}
+.histmenu{display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin-top:6px}
+.btn.dots{font-weight:700;letter-spacing:.05em}
 .badge{display:inline-block;margin-left:5px;padding:0 5px;border-radius:4px;background:var(--warn-bg);color:var(--warn);font-size:10px;font-weight:700;line-height:14px;text-transform:uppercase;letter-spacing:.03em}
 .sw.on .badge{background:var(--warn);color:#fff}
 .pchips{display:flex;flex-wrap:wrap;gap:4px;align-items:center;max-width:380px}
@@ -146,6 +151,7 @@ td.path small{display:block;color:var(--muted);font-weight:400;max-width:220px;w
     <button class="tab" id="tab-projects" role="tab" type="button" aria-selected="true">Projects</button>
     <button class="tab" id="tab-profiles" role="tab" type="button" aria-selected="false">Profiles</button>
     <button class="tab" id="tab-capabilities" role="tab" type="button" aria-selected="false">Capabilities<span class="tabbadge hide" id="capbadge"></span></button>
+    <button class="tab" id="tab-history" role="tab" type="button" aria-selected="false">History</button>
   </div>
 </header>
 <main>
@@ -172,12 +178,24 @@ td.path small{display:block;color:var(--muted);font-weight:400;max-width:220px;w
       <tbody id="captbody"></tbody>
     </table></div>
   </section>
+  <section id="view-history" class="hide">
+    <div class="bar"><span class="sub">Every change made through ntk, newest first, with what it did. Use the menu (&#8943;) on a line to undo it. Undoing re-applies every project, and an undo can itself be undone.</span></div>
+    <div class="tablewrap"><table style="min-width:900px">
+      <thead><tr><th>When</th><th>Change</th><th>What it did</th><th>State</th><th></th></tr></thead>
+      <tbody id="histbody"></tbody>
+    </table></div>
+    <details class="panel" id="fulllog"><summary>Full change log</summary>
+      <div class="sub">Every switch ntk has made, including applies that only enforced the profiles (those have nothing to undo).</div>
+      <div class="tablewrap"><table style="min-width:900px"><thead><tr><th>When</th><th>Where</th><th>Item</th><th>Change</th><th></th></tr></thead><tbody id="logbody"></tbody></table></div>
+    </details>
+  </section>
 </main>
 <script>
 "use strict";
 var BOOT = /*__BOOT__*/null || {token:"",readonly:false,state:null};
 var state = BOOT.state, RO = !!BOOT.readonly;
-function tabFromHash(){ return location.hash==="#profiles" ? "profiles" : location.hash==="#capabilities" ? "capabilities" : "projects"; }
+function tabFromHash(){ var h = location.hash.slice(1); return ["profiles","capabilities","history"].indexOf(h)>=0 ? h : "projects"; }
+var histMenu = null;      // history entry id whose line menu is open
 var tab = tabFromHash();
 var capSel = null;        // {id, sel:{profile:true}}  adopt picker
 var capEdit = null;       // dry-run result for adopt/retire, awaiting confirm
@@ -352,6 +370,7 @@ function render(){
   document.getElementById("view-projects").classList.toggle("hide", tab!=="projects");
   document.getElementById("view-profiles").classList.toggle("hide", tab!=="profiles");
   document.getElementById("view-capabilities").classList.toggle("hide", tab!=="capabilities");
+  document.getElementById("view-history").classList.toggle("hide", tab!=="history");
   var inb = state.inbox || {new:[],gone:[]}, nInbox = inb.new.length + inb.gone.length;
   var cbg = document.getElementById("capbadge"); cbg.textContent = String(nInbox); cbg.classList.toggle("hide", !nInbox);
   var cn = document.getElementById("capnote");
@@ -361,7 +380,7 @@ function render(){
     var cl = el("a",null,"Review in Capabilities."); cl.tabIndex=0; cl.setAttribute("role","link");
     cl.addEventListener("click", function(){ setTab("capabilities"); }); cn.appendChild(cl);
   }
-  ["projects","profiles","capabilities"].forEach(function(t){ document.getElementById("tab-"+t).setAttribute("aria-selected", String(tab===t)); });
+  ["projects","profiles","capabilities","history"].forEach(function(t){ document.getElementById("tab-"+t).setAttribute("aria-selected", String(tab===t)); });
   ["q","sf"].forEach(function(i){ document.getElementById(i).classList.toggle("hide", tab!=="projects"); });
   var o = state.org;
   document.getElementById("org").textContent = "Logged in to " + (o.name||"unknown org") + (o.id8 ? " ("+o.id8+")" : "") + (RO ? "  |  snapshot " : "  |  updated ") + (state.generated||"").replace("T"," ").slice(0,16);
@@ -380,7 +399,7 @@ function render(){
   if(ninl) chips.appendChild(el("span","chip inl", ninl+" inline"));
   renderBanners();
   var ft = document.getElementById("foot"); ft.textContent = (state.notes||[]).join(" ");
-  if(tab==="projects") renderProjects(); else if(tab==="profiles") renderProfiles(); else renderCaps();
+  if(tab==="projects") renderProjects(); else if(tab==="profiles") renderProfiles(); else if(tab==="history") renderHistory(); else renderCaps();
 }
 
 function renderBanners(){
@@ -703,6 +722,62 @@ function capPicker(c){
   box.appendChild(row);
   return box;
 }
+function when(t){ return (t||"").replace("T"," ").slice(0,16); }
+function undoEntry(e, mode){
+  histMenu = null;
+  act("undo", [["/api/undo",{id:e.id, mode:mode}]], (mode==="only" ? "Undoing just: " : "Going back to before: ")+e.label);
+}
+function histMenuFor(e, later){
+  var m = el("div","opts histmenu");
+  if(e.kind==="undo"){
+    m.appendChild(btn("Redo (undo this undo)","btn sm", function(){ undoEntry(e,"only"); }));
+  } else {
+    m.appendChild(btn("Undo just this change","btn sm", function(){ undoEntry(e,"only"); }));
+    if(later) m.appendChild(btn("Go back to before this (also undoes "+later+" later change"+(later===1?"":"s")+")","btn sm", function(){ undoEntry(e,"to"); }));
+  }
+  m.appendChild(btn("Cancel","btn sm", function(){ histMenu=null; render(); }));
+  return m;
+}
+function menuButton(e){
+  var b = el("button","btn sm dots","\u22EF"); b.type="button"; b.title="Undo options for this change";
+  b.setAttribute("aria-label","Undo options for: "+e.label);
+  b.disabled = RO || !!busy.undo;
+  b.addEventListener("click", function(){ histMenu = histMenu===e.id ? null : e.id; render(); });
+  return b;
+}
+function renderHistory(){
+  var hs = state.history||[], tb = document.getElementById("histbody"); tb.textContent="";
+  if(!hs.length){ var tr0=el("tr"), td0=el("td",null,"No recorded changes yet. Changes you make in ntk from now on appear here."); td0.colSpan=5; tr0.appendChild(td0); tb.appendChild(tr0); }
+  hs.forEach(function(e, idx){
+    var later = hs.slice(0, idx).filter(function(x){ return x.kind!=="undo" && !x.undone; }).length;
+    var tr = el("tr"); if(e.undone) tr.className = "undone";
+    tr.appendChild(el("td",null,when(e.time)));
+    tr.appendChild(el("td",null,e.label));
+    var eff = el("td"), lg = e.log||[];
+    if(!lg.length) eff.appendChild(el("span","sub", (e.files||[]).join(", ")||"-"));
+    var ul = el("ul","efx");
+    lg.slice(0,8).forEach(function(l){ ul.appendChild(el("li",null,(l.where||"")+": "+(l.item||"")+" "+(l.change||""))); });
+    if(lg.length>8){ var more=el("li","sub","+"+(lg.length-8)+" more"); more.title=lg.slice(8).map(function(l){return l.where+": "+l.item+" "+l.change;}).join("\n"); ul.appendChild(more); }
+    if(lg.length) eff.appendChild(ul);
+    tr.appendChild(eff);
+    tr.appendChild(el("td",null, e.undone ? "undone" : (e.kind==="undo" ? "undo" : "")));
+    var tm = el("td"); if(!e.undone) tm.appendChild(menuButton(e));
+    if(histMenu===e.id) tm.appendChild(histMenuFor(e, later));
+    tr.appendChild(tm); tb.appendChild(tr);
+  });
+  var lb = document.getElementById("logbody"); lb.textContent="";
+  var byId = {}; hs.forEach(function(e){ byId[e.id]=e; });
+  (state.changelog||[]).forEach(function(l){
+    var tr = el("tr");
+    [when(l.time), l.where, l.item, l.change].forEach(function(v){ tr.appendChild(el("td",null,v||"")); });
+    var td = el("td"), e = l.entry && byId[l.entry];
+    if(e && !e.undone){ var a = el("a",null,"part of: "+e.label); a.tabIndex=0; a.setAttribute("role","link");
+      a.addEventListener("click", function(){ histMenu = e.id; document.getElementById("fulllog").open = false; render(); });
+      td.appendChild(a); }
+    tr.appendChild(td); lb.appendChild(tr);
+  });
+}
+
 function renderCaps(){
   var caps = state.capabilities||[];
   var ib = document.getElementById("inbox"); ib.textContent="";
@@ -760,6 +835,7 @@ function setTab(t){ tab = t; try{ history.replaceState(null,"", t==="projects" ?
 document.getElementById("tab-projects").addEventListener("click", function(){ setTab("projects"); });
 document.getElementById("tab-profiles").addEventListener("click", function(){ setTab("profiles"); });
 document.getElementById("tab-capabilities").addEventListener("click", function(){ setTab("capabilities"); });
+document.getElementById("tab-history").addEventListener("click", function(){ setTab("history"); });
 document.getElementById("newprof-btn").addEventListener("click", function(){ showNewForm = !showNewForm; render(); });
 window.addEventListener("hashchange", function(){ tab = tabFromHash(); render(); });
 document.getElementById("q").addEventListener("input", render);
