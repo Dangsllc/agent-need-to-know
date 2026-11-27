@@ -76,6 +76,10 @@ td.path small{display:block;color:var(--muted);font-weight:400;max-width:220px;w
 .gstrip .sws{max-width:none;margin-top:6px}
 .gstrip .sw{cursor:default}
 .gstrip ul{margin:6px 0 0}
+.sw.aw{border-style:dotted;cursor:default}
+.tag.scope{margin-left:6px;font-weight:400}
+.awpolicy{margin-top:8px;font-size:12px;color:var(--muted)}
+.awpolicy select{margin-left:4px}
 tr.undone td{color:var(--muted);text-decoration:line-through}
 tr.undone td:last-child,tr.undone td:nth-child(4){text-decoration:none}
 ul.efx{margin:0;padding-left:16px;font-size:12px}
@@ -371,7 +375,9 @@ function render(){
   document.getElementById("view-profiles").classList.toggle("hide", tab!=="profiles");
   document.getElementById("view-capabilities").classList.toggle("hide", tab!=="capabilities");
   document.getElementById("view-history").classList.toggle("hide", tab!=="history");
-  var inb = state.inbox || {new:[],gone:[]}, nInbox = inb.new.length + inb.gone.length;
+  var inb = state.inbox || {new:[],gone:[]};
+  var nAw = (state.account_wide||[]).filter(function(a){return a.status==="pending";}).length;
+  var nInbox = inb.new.length + inb.gone.length + nAw;
   var cbg = document.getElementById("capbadge"); cbg.textContent = String(nInbox); cbg.classList.toggle("hide", !nInbox);
   var cn = document.getElementById("capnote");
   cn.classList.toggle("hide", !inb.new.length || tab!=="projects"); cn.textContent = "";
@@ -444,6 +450,15 @@ function renderBanners(){
     }
     bn.appendChild(gp);
   }
+  var awl = state.account_wide||[];
+  if(awl.length){
+    var ap = el("div","panel gstrip");
+    ap.appendChild(el("span","glabel","On for the whole account"));
+    ap.appendChild(el("span","hint"," installed for every project at once, so profiles can't scope it until you choose. Projects whose profiles grant it keep it either way."));
+    awl.forEach(function(a){ ap.appendChild(awItem(a)); });
+    ap.appendChild(policyPicker());
+    bn.appendChild(ap);
+  }
   if((state.stale||[]).length){
     var d = el("details","panel"); d.appendChild(el("summary",null,"Stale Claude project entries ("+state.stale.length+", folder gone, report only)"));
     var u2 = el("ul"); state.stale.forEach(function(s){ var li=el("li"); li.appendChild(el("code",null,s)); u2.appendChild(li); });
@@ -512,7 +527,7 @@ function row(p){
     if(x.state==="off" && !x.inline && !x.denied_by.length) return;
     shown[x.id] = 1;
     var cls, extra = "";
-    if(x.global){ shown[x.id] = 1; return; }  // one switch for every project: shown once, in the Global strip
+    if(x.global || x.state==="account-wide"){ shown[x.id] = 1; return; }  // shown once, in the strips above  // one switch for every project: shown once, in the Global strip
     if(x.state==="missing"){ cls="missing"; extra=(p.missing_hints||{})[x.id]||"not installed"; }
     else if(x.desired){ cls="on"; if(x.state==="needs-on"){ cls+=" drift"; extra="wanted on, currently off"; } }
     else { cls="off"; if(x.state==="needs-off"){ cls+=" drift"; extra="wanted off, currently on"; } }
@@ -778,12 +793,45 @@ function renderHistory(){
   });
 }
 
+var AW_POLICY_TEXT = {ask:"Ask (report it and let me choose)", contain:"Contain (apply makes it project-only)", allow:"Allow (leave it on everywhere)"};
+function awItem(a){
+  var it = el("div","inbox-item"), g = el("div","grow");
+  var c = el("span","sw on aw",short(a.id)); c.appendChild(el("span","gmark","\u29BF")); c.title = a.id; g.appendChild(c);
+  var total = a.wanted_by.length + a.not_wanted_by.length;
+  var why = a.status==="will-contain" ? " The contain policy makes it project-only on the next Apply all."
+          : a.status==="allowed" ? " Allowed by policy." : "";
+  g.appendChild(el("div","sub","On in every project because it was installed for the whole account. Profiles grant it in "+a.wanted_by.length+" of "+total+" projects."+why));
+  g.title = a.wanted_by.length ? "Granted in:\n"+a.wanted_by.join("\n") : "No profile grants it";
+  it.appendChild(g);
+  var key = "aw:"+a.id, dis = RO || !!busy[key];
+  it.appendChild(btn("Make project-only","btn sm", function(){ act(key,[["/api/account-wide",{id:a.id,choice:"project-only"}]],"Making "+short(a.id)+" project-only"); }, dis));
+  it.appendChild(btn("Keep everywhere","btn sm", function(){ act(key,[["/api/account-wide",{id:a.id,choice:"everywhere"}]],"Adding "+short(a.id)+" to "+((state.default_profiles||[])[0]||"the default profile")); }, dis || !(state.default_profiles||[]).length));
+  if(busy[key]){ var w=el("span","working"); w.appendChild(el("span","spin")); w.appendChild(document.createTextNode(busy[key]+"...")); it.appendChild(w); }
+  return it;
+}
+function policyPicker(){
+  var wrap = el("div","awpolicy"), lab = el("label",null,"Plugins installed for the whole account: ");
+  var s = el("select"); s.setAttribute("aria-label","Policy for plugins installed for the whole account");
+  ["ask","contain","allow"].forEach(function(v){ var o=el("option",null,AW_POLICY_TEXT[v]); o.value=v; if(state.account_wide_policy===v) o.selected=true; s.appendChild(o); });
+  s.disabled = RO || !!busy.policy;
+  s.addEventListener("change", function(){ act("policy",[["/api/policy",{account_wide:s.value}]],"Setting the account-wide policy to "+s.value); });
+  lab.appendChild(s); wrap.appendChild(lab); return wrap;
+}
+function scopeMark(id){
+  if((state.globals||[]).some(function(g){return g.id===id;})) return el("span","tag scope","\u{1F310}\uFE0E global");
+  if((state.account_wide||[]).some(function(a){return a.id===id;})) return el("span","tag scope","\u29BF on for the whole account");
+  return null;
+}
+
 function renderCaps(){
   var caps = state.capabilities||[];
   var ib = document.getElementById("inbox"); ib.textContent="";
   ib.appendChild(el("h2",null,"Inbox"));
   var news = caps.filter(function(c){return c.status==="new";}), gone = caps.filter(function(c){return c.status==="gone";});
-  if(!news.length && !gone.length) ib.appendChild(el("div","sub","Nothing waiting. New plugins and connectors show up here after a scan."));
+  var awl = state.account_wide||[];
+  if(!news.length && !gone.length && !awl.length) ib.appendChild(el("div","sub","Nothing waiting. New plugins and connectors show up here after a scan."));
+  awl.forEach(function(a){ ib.appendChild(awItem(a)); });
+  ib.appendChild(policyPicker());
   news.concat(gone).forEach(function(c){
     var key = "cap:"+c.id, dis = RO || !!busy[key] || !!capEdit;
     var it = el("div","inbox-item"), g = el("div","grow");
@@ -817,7 +865,8 @@ function renderCaps(){
   var tb = document.getElementById("captbody"); tb.textContent="";
   caps.forEach(function(c){
     var tr = el("tr");
-    tr.appendChild(el("td","path",c.id));
+    var idc = el("td","path",c.id), sm = scopeMark(c.id); if(sm) idc.appendChild(sm);
+    tr.appendChild(idc);
     tr.appendChild(el("td",null,c.kind));
     var ts = el("td"); ts.appendChild(el("span","chip "+(c.status==="active"?"ok":c.status==="new"?"new":c.status==="gone"?"error":"gone"),c.status)); tr.appendChild(ts);
     tr.appendChild(el("td",null,fmtDate(c.first_seen)));

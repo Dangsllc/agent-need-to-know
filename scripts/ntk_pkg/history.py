@@ -20,6 +20,15 @@ import shutil
 from .model import write_versioned
 
 FILES = ("profiles.json", "projects.json", "capabilities.json")
+AW = "(account-wide)"   # change-log `where` for account-wide switches; undo reverses them
+
+
+def _reverse_lines(es):
+    """Account-wide switches in these entries, newest first, for the caller to reverse."""
+    out = []
+    for e in sorted(es, key=lambda x: x["id"], reverse=True):
+        out += [l for l in reversed(e.get("log") or []) if l["where"] == AW]
+    return out
 KEEP = 100
 
 
@@ -133,8 +142,10 @@ def recording(cfg, label):
         yield
     finally:
         changed = _changed(before, _snapshot(cfg))
-        if changed:
-            _save(cfg, before, label, changed, log=_log_since(cfg, pos))
+        log = _log_since(cfg, pos)
+        # switches with no data file behind them (account-wide) are undoable too
+        if changed or any(l["where"] == AW for l in log):
+            _save(cfg, before, label, changed, log=log)
 
 
 def entries(cfg):
@@ -195,12 +206,12 @@ def undo(cfg, hid=None, dry=False, out=print):
             f.write(raw)
         os.replace(tmp, dst)
     changed = _changed(before, _snapshot(cfg))
-    _save(cfg, before, "undo: " + target["label"], changed, kind="undo", ref=target["id"])
+    um = _save(cfg, before, "undo: " + target["label"], changed, kind="undo", ref=target["id"])
     for e in [target] + later:
         _set_meta(cfg, e["id"], undone=True)
     out("undid: %s (%s)%s" % (target["label"], target["time"],
                               "; also reverted %d later change(s)" % len(later) if later else ""))
-    return 0, target
+    return 0, dict(target, reverse=_reverse_lines([target] + later), undo_id=um["id"])
 
 
 def _merge_caps(cur_raw, old_raw):
@@ -338,7 +349,8 @@ def undo_only(cfg, hid, dry=False, out=print):
         out("can't undo just %r: %s. Use undo to go back to before it instead (that also "
             "reverts the later changes)." % (target["label"], "; ".join(conflicts)))
         return 1, None
-    if not new:
+    rev = _reverse_lines([target])
+    if not new and not rev:
         out("nothing left to undo for %r" % target["label"])
         return 0, None
     if dry:
@@ -347,7 +359,19 @@ def undo_only(cfg, hid, dry=False, out=print):
     for n, doc in new.items():
         write_versioned(os.path.join(cfg.data_dir, n), doc)
     changed = _changed(cur, _snapshot(cfg))
-    _save(cfg, cur, "undo just: " + target["label"], changed, kind="undo", ref=hid)
+    um = _save(cfg, cur, "undo just: " + target["label"], changed, kind="undo", ref=hid)
     _set_meta(cfg, hid, undone=True)
     out("undid just: %s (%s)" % (target["label"], target["time"]))
-    return 0, target
+    return 0, dict(target, reverse=rev, undo_id=um["id"])
+
+
+def add_log(cfg, hid, lines):
+    """Attach change-log lines written after an entry was saved (an undo's switches)."""
+    if not lines:
+        return
+    p = os.path.join(_dir(cfg), hid, "meta.json")
+    with open(p, encoding="utf-8") as f:
+        m = json.load(f)
+    m["log"] = (m.get("log") or []) + lines
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(m, f, indent=2)

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Plugins switched on for the whole account.** An ordinary plugin installed at user level (Claude Code: `true` in the user settings' `enabledPlugins`) is on in every project, so profiles can't scope it. It used to show as drift in every project whose profiles don't grant it. Now:
+  - it's reported once (`account_wide` in `scan --json`, an `account-wide:` line, an "On for the whole account" strip in the page and an inbox item), with no per-project drift;
+  - you decide with `ntk account-wide <id> project-only` (off for the account, on in each project whose profiles grant it) or `everywhere` (added to the first default profile), or with the buttons on the page;
+  - a policy covers new ones: `ntk policy account-wide ask|contain|allow` (default `ask`, stored in `profiles.json`). With `contain`, `apply --all` makes them project-only; with `allow` they're only reported;
+  - account-wide switches go into history and the change log under `(account-wide)`, and undo and redo switch them back. `apply` is recorded when it changes something.
+- **Capabilities tab** marks global plugins (🌐) and plugins on for the whole account.
 - **History tab and undo per change.** The page has a History tab: every recorded change, newest first, with the switches it made (from the change log). Each line's menu offers **Undo just this change**, which keeps later changes and is refused with the reason when a later change touched the same thing, and **Go back to before this**, which also reverts the later ones. An undo line offers **Redo**. The full change log is below, each line linked to the change it was part of. CLI: `ntk history -v` and `ntk undo <id> --only`.
 - **Global plugins.** Claude Code's built-in plugins (`<name>@builtin`) have one switch shared by every project: `claude plugin enable|disable --scope local` on one of them writes the user settings. ntk used to toggle them per project, so applying one project flipped them for all, and a built-in that Claude Code stopped offering was reported as missing in every project and sent to `claude plugin install`. Now:
   - they never count as per-project drift or missing, and nothing installs or switches them per project (`check` ignores them too);

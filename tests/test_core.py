@@ -731,6 +731,55 @@ class TestHistory(Env):
         self.capf = os.path.join(self.data, "capabilities.json")
 
 
+class TestAccountWide(Env):
+    """A plugin switched on for the whole account: one decision, not drift in every project."""
+
+    def setUp(self):
+        super().setUp()
+        jdump({"enabledPlugins": {"b@x": True}}, os.path.join(os.path.dirname(self.cj), "user-settings.json"))
+        both = [{"id": "a@x", "enabled": True}, {"id": "b@x", "enabled": True}]
+        for r in (self.root, os.path.join(self.root, "app"), os.path.join(self.root, "other")):
+            self.lists[r] = [dict(i) for i in both]
+
+    def test_scan_reports_once_without_drift(self):
+        st = engine.scan(config.load_config(), fresh=True)
+        aw = st["account_wide"]
+        self.assertEqual([(a["id"], a["status"], a["wanted_by"]) for a in aw], [("b@x", "pending", ["app"])])
+        other = [r for r in st["projects"] if r["path"] == "other"][0]
+        self.assertNotIn("b@x", " ".join(other["drift"]))
+        self.assertEqual([p["state"] for p in other["plugins"] if p["id"] == "b@x"], ["account-wide"])
+        self.assertEqual(st["account_wide_policy"], "ask")
+
+    def test_project_only_is_recorded_and_undoable(self):
+        cfg = config.load_config()
+        with history.recording(cfg, "account-wide b@x project-only"):
+            rc = engine.account_wide_decide(cfg, "b@x", "project-only", out=lambda m: None)
+        self.assertEqual(rc, 0)
+        self.assertIn((["claude", "plugin", "disable", "b@x", "--scope", "user"]), [c for c, _ in self.cmds])
+        e = history.entries(cfg)[0]
+        self.assertEqual(e["label"], "account-wide b@x project-only")
+        self.assertEqual(e["files"], [])  # no data file changed, still recorded
+        self.cmds.clear()
+        engine.undo_change(cfg, e["id"], only=True, out=lambda m: None)
+        self.assertIn(["claude", "plugin", "enable", "b@x", "--scope", "user"], [c for c, _ in self.cmds])
+        undo = history.entries(cfg)[0]
+        self.assertTrue(any(l["where"] == "(account-wide)" for l in undo["log"]))  # so redo can switch it back
+
+    def test_keep_everywhere_adds_to_default_profile(self):
+        engine.account_wide_decide(config.load_config(), "b@x", "everywhere", out=lambda m: None)
+        self.assertIn("b@x", jload(os.path.join(self.data, "profiles.json"))["profiles"]["base"]["plugins"])
+
+    def test_contain_policy_acts_on_apply_all_and_allow_just_reports(self):
+        cfg = config.load_config()
+        engine.set_account_wide_policy(cfg, "contain", out=lambda m: None)
+        self.assertEqual(engine.scan(cfg, fresh=True)["account_wide"][0]["status"], "will-contain")
+        engine.apply_all(cfg, out=lambda m: None)
+        self.assertIn(["claude", "plugin", "disable", "b@x", "--scope", "user"], [c for c, _ in self.cmds])
+        engine.set_account_wide_policy(cfg, "allow", out=lambda m: None)
+        self.assertEqual(engine.scan(cfg, fresh=True)["account_wide"][0]["status"], "allowed")
+        self.assertEqual(jload(os.path.join(self.data, "profiles.json"))["account_wide_policy"], "allow")
+
+
 class TestServer(Env):
     def setUp(self):
         super().setUp()

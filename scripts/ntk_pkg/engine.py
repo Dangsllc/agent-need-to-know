@@ -43,7 +43,7 @@ def invalidate_cache(cfg, abspath):
 
 
 
-def evaluate(cfg, rel, entry, profiles, defaults, cj, plugin_list, connectors_avail, costs):
+def evaluate(cfg, rel, entry, profiles, defaults, cj, plugin_list, connectors_avail, costs, aw=None):
     ap = abs_of(cfg, rel)
     gone = not os.path.isdir(ap)
     des = resolve(profiles, defaults, entry, connectors_avail)
@@ -75,6 +75,13 @@ def evaluate(cfg, rel, entry, profiles, defaults, cj, plugin_list, connectors_av
                                    "sources": sp.get(i, []), "denied_by": dp.get(i, []), "inline": iv,
                                    "global": True})
             continue
+        if i in (aw or ()) and en and not want:
+            # on for the whole account, not by this project's profiles: one decision
+            # for every project (scan()["account_wide"]), not per-project drift
+            res["plugins"].append({"id": i, "desired": want, "enabled": en, "present": pr, "state": "account-wide",
+                                   "sources": sp.get(i, []), "denied_by": dp.get(i, []), "inline": iv,
+                                   "global": False, "account_wide": True})
+            continue
         if want and scanned and not pr:
             st = "missing"
             res["missing"].append(i)
@@ -90,7 +97,7 @@ def evaluate(cfg, rel, entry, profiles, defaults, cj, plugin_list, connectors_av
             st = "off"
         res["plugins"].append({"id": i, "desired": want, "enabled": en, "present": pr, "state": st,
                                "sources": sp.get(i, []), "denied_by": dp.get(i, []), "inline": iv,
-                               "global": False})
+                               "global": False, "account_wide": i in (aw or ())})
     avail = set(connectors_avail or [])
     c_on, c_off = set(des["connectors_on"]), set(des["connectors_off"])
     sc, dc_ = des["sources"]["connector"], des["denied_by"]["connector"]
@@ -198,6 +205,107 @@ def _apply_many(cfg, rels, out):
     return reconcile_globals(cfg, out) or rc
 
 
+def account_wide_summary(rows, aw, policy):
+    """One entry per plugin switched on for the whole account: which projects'
+    profiles grant it, and what happens next under the policy."""
+    managed = [r for r in rows if r["status"] not in ("new", "gone")]
+    out = []
+    for i in sorted(aw):
+        want = [r["path"] for r in managed if any(p["id"] == i and p["desired"] for p in r["plugins"])]
+        out.append({"id": i, "wanted_by": want, "not_wanted_by": [r["path"] for r in managed if r["path"] not in want],
+                    "status": {"ask": "pending", "contain": "will-contain", "allow": "allowed"}[policy]})
+    return out
+
+
+def _wanting(cfg, pid):
+    profiles, meta = load_profiles(cfg)
+    projects = load_projects(cfg)["projects"]
+    return [r for r in projects if os.path.isdir(abs_of(cfg, r))
+            and pid in resolve(profiles, meta["default_profiles"], projects[r], None)["plugins"]]
+
+
+def account_wide_decide(cfg, pid, choice, dry=False, out=print):
+    """project-only: switch it off for the account, then on in each project whose
+    profiles grant it. everywhere: add it to the first default profile. -> rc."""
+    if choice not in ("project-only", "everywhere"):
+        out("choice must be project-only or everywhere")
+        return 2
+    if pid not in A().account_wide():
+        out("%s is not switched on for the whole account" % pid)
+        return 2
+    if choice == "everywhere":
+        profiles, meta = load_profiles(cfg)
+        if not meta["default_profiles"]:
+            out("no default profile to add it to; create one with `profile-default add <name>`")
+            return 2
+        return profile_edit(cfg, meta["default_profiles"][0], "add", "plugin", pid, dry=dry, out=out)[0]
+    want = _wanting(cfg, pid)
+    out("%s: off for the whole account; on in %d project(s) whose profiles grant it%s"
+        % (pid, len(want), (": " + ", ".join(want)) if want and len(want) <= 6 else ""))
+    if dry:
+        return 0
+    if A().set_global(pid, False, out):
+        return 1
+    log_change(cfg, "(account-wide)", "plugin:" + pid, "on", "off")
+    rc, ctx = 0, {"quiet_globals": True}
+    for r in want:
+        rc = do_apply(cfg, r, only=("plugin", pid), out=out, ctx=ctx) or rc
+    return rc
+
+
+def set_account_wide_policy(cfg, policy, out=print):
+    if policy not in model.AW_POLICIES:
+        out("policy must be one of: " + ", ".join(model.AW_POLICIES))
+        return 2
+    profiles, meta = load_profiles(cfg)
+    if meta["account_wide_policy"] == policy and "account_wide_policy" in meta["raw"]:
+        out("account-wide policy is already %s" % policy)
+        return 0
+    old = meta["account_wide_policy"]
+    meta["account_wide_policy"] = policy
+    meta["raw"]["account_wide_policy"] = policy
+    save_profiles(cfg, profiles, meta)
+    log_change(cfg, "(policy)", "account-wide", old, policy)
+    out("account-wide policy: %s" % policy)
+    return 0
+
+
+def contain_account_wide(cfg, dry=False, out=print):
+    """Under the contain policy, make each account-wide plugin project-only. -> rc."""
+    if load_profiles(cfg)[1]["account_wide_policy"] != "contain":
+        return 0
+    rc = 0
+    for pid in A().account_wide():
+        out("(account-wide): contain policy")
+        rc = account_wide_decide(cfg, pid, "project-only", dry=dry, out=out) or rc
+    return rc
+
+
+def reverse_account_wide(cfg, lines, out=print):
+    """Switch back the account-wide changes named in change-log lines (newest first)."""
+    rc = 0
+    for l in lines:
+        pid = l["item"].split(":", 1)[1] if l["item"].startswith("plugin:") else None
+        old = l["change"].split(" -> ")[0].strip()
+        if pid and old in ("on", "off"):
+            if A().set_global(pid, old == "on", out):
+                rc = 1
+            else:
+                log_change(cfg, "(account-wide)", "plugin:" + pid, l["change"].split(" -> ")[-1].strip(), old)
+    return rc
+
+
+def undo_change(cfg, hid=None, only=False, dry=False, out=print):
+    """Undo through history, switch back account-wide changes, then apply all. -> rc."""
+    rc, e = (history.undo_only if only else history.undo)(cfg, hid, dry=dry, out=out)
+    if e is None or dry or rc:
+        return rc
+    pos = history._log_size(cfg)
+    rc = reverse_account_wide(cfg, e.get("reverse") or [], out) or rc
+    history.add_log(cfg, e["undo_id"], history._log_since(cfg, pos))  # so a redo switches them back
+    return apply_all(cfg, out=out) or rc
+
+
 def global_summary(rows):
     """One entry per global plugin across the managed projects (rows with a
     profile entry and a folder): which want it on, which don't, and what to do.
@@ -272,11 +380,12 @@ def scan(cfg, fresh=False):
     if not isinstance(costs, dict):
         costs = None
     oi = A().account_info()
+    aw = set(A().account_wide())
     rows = []
     for r in rels:
         ap = abs_of(cfg, r)
         pl = (cache["projects"].get(ap) or {}).get("plugins") if r in live else None
-        row = evaluate(cfg, r, projects.get(r), profiles, defaults, cj, pl, connectors, costs)
+        row = evaluate(cfg, r, projects.get(r), profiles, defaults, cj, pl, connectors, costs, aw)
         row["missing_hints"] = {i: A().missing_hint(i, oi) for i in row["missing"]}
         rows.append(row)
     stale = A().stale_entries(cj, cfg.root)
@@ -310,6 +419,8 @@ def scan(cfg, fresh=False):
         "counts": counts, "projects": rows, "stale": stale, "missing": miss_list,
         "has_costs": costs is not None, "globals": global_summary(rows),
         "undo": history.latest_undoable(cfg), "history": history.entries(cfg)[:60],
+        "account_wide": account_wide_summary(rows, aw, meta["account_wide_policy"]),
+        "account_wide_policy": meta["account_wide_policy"],
         "changelog": history.change_log(cfg, 300),
         "capabilities": lifecycle.caps_view(caps, rows, profiles, oi, seen_ids),
         "warnings": list(model.WARNINGS), "notes": legacy_notes(),
@@ -345,8 +456,10 @@ def plan_project(cfg, rel, ctx, only=None):
     if pl is None:
         return None, [], ("could not read the plugin list for %s (is `claude` on PATH and logged in?)" % rel, 1)
     profiles, meta = load_profiles(cfg)
+    if "aw" not in ctx:
+        ctx["aw"] = set(A().account_wide())
     row = evaluate(cfg, rel, entry, profiles, meta["default_profiles"], A().load_state(), pl,
-                   get_connectors(cfg, ctx), None)
+                   get_connectors(cfg, ctx), None, ctx["aw"])
     if row["unknown_profiles"]:
         return row, [], ("%s: unknown profile(s): %s" % (rel, ", ".join(row["unknown_profiles"])), 2)
     return row, A().plan(row, only), None
@@ -433,6 +546,8 @@ def apply_all(cfg, dry=False, out=print):
         except Exception as e:
             failures.append("%s: %s" % (rel, e))
             out("%s: FAILED %s" % (rel, e))
+    if contain_account_wide(cfg, dry=dry, out=out):
+        failures.append("account-wide: a command failed")
     if reconcile_globals(cfg, out, dry=dry, tally=tot):
         failures.append("global plugins: a command failed or the plugin list could not be read")
     parts = ["%d %s" % (v, k) for k, v in sorted(tot.items())]

@@ -151,6 +151,12 @@ def _ser_profile(p):
     return out
 
 
+# What to do with a plugin switched on for the whole account (not a built-in):
+# ask = report it once and let the user choose; contain = apply turns it off
+# account-wide and on only where profiles grant it; allow = leave it on everywhere.
+AW_POLICIES = ("ask", "contain", "allow")
+
+
 def load_profiles(cfg):
     """(profiles, meta). profiles: {name: v2 profile}. meta: default_profiles,
     plugin_accounts (keys starting with _ dropped) and the raw top-level dict."""
@@ -162,6 +168,7 @@ def load_profiles(cfg):
     acc = d.get("plugin_accounts") if isinstance(d.get("plugin_accounts"), dict) else {}
     meta = {"default_profiles": _uniq(_strs(d.get("default_profiles"))),
             "plugin_accounts": {k: v for k, v in acc.items() if not k.startswith("_")},
+            "account_wide_policy": d.get("account_wide_policy") if d.get("account_wide_policy") in AW_POLICIES else "ask",
             "raw": d}
     return profiles, meta
 
@@ -169,6 +176,8 @@ def load_profiles(cfg):
 def save_profiles(cfg, profiles, meta):
     out = dict(meta.get("raw") or {})
     out["default_profiles"] = list(meta["default_profiles"])
+    if meta.get("account_wide_policy", "ask") != "ask" or "account_wide_policy" in out:
+        out["account_wide_policy"] = meta.get("account_wide_policy", "ask")
     out["profiles"] = {n: _ser_profile(p) for n, p in profiles.items()}
     write_versioned(cfg.profiles_path, out)
     meta["raw"] = out
