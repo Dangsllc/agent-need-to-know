@@ -70,6 +70,17 @@ class Adapter(object):
     def is_account_scoped(self, pid):
         return False
 
+    def is_global(self, pid):
+        """True for a plugin the tool keeps one setting for, shared by every
+        project (it cannot be switched per project). The core never plans
+        per-project changes for these; it reports them once and, when every
+        profile agrees, sets them once with set_global."""
+        return False
+
+    def set_global(self, pid, on, out):
+        """Switch a global plugin on or off for every project. -> rc."""
+        raise NotImplementedError
+
     # --- planning and applying ------------------------------------------------
     def installable(self, pid):
         """True if a missing plugin can be installed from here."""

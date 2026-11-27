@@ -8,9 +8,10 @@ import threading
 import webbrowser
 from urllib.parse import parse_qs, urlparse
 
-from .engine import (do_apply, do_attach, do_inline, load_page, profile_default, profile_edit,
+from .engine import (apply_all, do_apply, do_attach, do_inline, load_page, profile_default, profile_edit,
                      profile_new, scan)
 from .lifecycle import capability_adopt, capability_ignore, capability_retire
+from . import history
 from .model import NAME_RE, SchemaTooNew, abs_of, assert_writable, load_projects
 
 
@@ -91,6 +92,27 @@ def handle_post(cfg, path, body, msgs):
     return 404, {"error": "not found"}
 
 
+def _label(path, body):
+    """`ntk history` label for a console action, in the CLI's words."""
+    name = path.rsplit("/", 1)[-1]
+    keys = ("action", "op", "name", "path", "profile", "kind", "id", "value")
+    vals = [str(body[k]) for k in keys if isinstance(body.get(k), str) and body.get(k)]
+    if isinstance(body.get("profiles"), list):
+        vals.append(",".join(str(x) for x in body["profiles"]))
+    return " ".join([name] + vals) + " (console)"
+
+
+def handle_undo(cfg, body, msgs):
+    hid = body.get("id")
+    if hid is not None and not (isinstance(hid, str) and hid):
+        return _bad()
+    assert_writable(cfg)
+    rc, e = history.undo(cfg, hid, out=msgs.append)
+    if e is None or rc:
+        return 200, {"rc": rc}
+    return 200, {"rc": apply_all(cfg, out=lambda m: msgs.append(m) if ("FAILED" in m or m.startswith(("(all", "totals"))) else None)}
+
+
 def make_handler(cfg, token):
     lock = threading.Lock()
     state_lock = threading.Lock()
@@ -143,7 +165,13 @@ def make_handler(cfg, token):
                     return self._send(400, '{"error":"bad request"}')
                 msgs = []
                 with lock:
-                    code, payload = handle_post(cfg, u.path, body, msgs)
+                    if u.path == "/api/undo":
+                        code, payload = handle_undo(cfg, body, msgs)
+                    elif body.get("dry_run"):
+                        code, payload = handle_post(cfg, u.path, body, msgs)
+                    else:
+                        with history.recording(cfg, _label(u.path, body)):
+                            code, payload = handle_post(cfg, u.path, body, msgs)
                 if code != 200:
                     return self._send(code, json.dumps(payload))
                 rc = payload.pop("rc")
