@@ -22,9 +22,10 @@ From the primary adapter only: read_project (the SessionStart hook is Claude
 Code's, and file-only) and account_info.
 """
 from .base import Adapter  # noqa: F401
+from .antigravity import AntigravityAdapter
 from .claude_code import ClaudeCodeAdapter
 
-_ADAPTERS = [ClaudeCodeAdapter()]
+_ADAPTERS = [ClaudeCodeAdapter(), AntigravityAdapter()]
 
 
 def registered():

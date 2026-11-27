@@ -597,7 +597,7 @@ def apply_all(cfg, dry=False, out=print):
                                lambda m: out("  " + m) if m.startswith("FAILED") else None)
                 invalidate_cache(cfg, abs_of(cfg, rel))
                 if rc:
-                    failures.append("%s: a plugin command failed" % rel)
+                    failures.append("%s: a change failed (see the lines above, or run `ntk apply %s`)" % (rel, rel))
         except Exception as e:
             failures.append("%s: %s" % (rel, e))
             out("%s: FAILED %s" % (rel, e))
