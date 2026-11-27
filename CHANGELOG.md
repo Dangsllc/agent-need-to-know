@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Fix: no false drift after a global or account-wide switch.** Such a switch changes what every project sees, so ntk now forgets its cached plugin lists (up to 5 minutes old) right after one. Before, the page's re-scan showed the old state as drift in every project. History labels for page actions now include the choice (for example `project-only`) and the policy value.
 - **Plugins switched on for the whole account.** An ordinary plugin installed at user level (Claude Code: `true` in the user settings' `enabledPlugins`) is on in every project, so profiles can't scope it. It used to show as drift in every project whose profiles don't grant it. Now:
   - it's reported once (`account_wide` in `scan --json`, an `account-wide:` line, an "On for the whole account" strip in the page and an inbox item), with no per-project drift;
   - you decide with `ntk account-wide <id> project-only` (off for the account, on in each project whose profiles grant it) or `everywhere` (added to the first default profile), or with the buttons on the page;
