@@ -75,7 +75,9 @@ class Env(unittest.TestCase):
         self.saved = dict(os.environ)
         os.environ.update({"NTK_CONFIG": self.cfgfile, "NTK_CLAUDE_JSON": self.cj,
                            "NTK_USER_SETTINGS": os.path.join(t, "user-settings.json"),
-                           "NTK_CLAUDE_HOME": os.path.join(t, "home")})
+                           "NTK_CLAUDE_HOME": os.path.join(t, "home"),
+                           # never read the real ~/.gemini (Antigravity): an empty, absent home
+                           "NTK_GEMINI_HOME": os.path.join(t, "gemini")})
         # never shell out to the real claude CLI
         self._orig = (cc.fetch_plugin_list, cc.fetch_connectors, cc.run)
         self.cmds = []

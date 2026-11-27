@@ -33,10 +33,9 @@ class Adapter(object):
     #   (the tool's name in prose), brand (its short name), cli (its command),
     #   state_file (its per-user state file, named in "stale entry" reports)
     labels = {}
-    # profiles enforce this adapter's ids only when True. The Fleet still reads
-    # state (connectors off, the SessionStart check) from the first adapter only,
-    # so a second adapter that turned this on would show drift apply can't clear.
-    # Set it once the Fleet routes those reads to the adapter (P1).
+    # profiles enforce this adapter's ids only when True. Turn it on once the
+    # adapter reads its own state (connectors_off, list_plugins) and applies it;
+    # the SessionStart hook ignores ids the first adapter doesn't own.
     enforce = False
 
     def available(self):
@@ -66,8 +65,9 @@ class Adapter(object):
 
     # --- reading (what exists, what is set) -----------------------------------
     def list_available(self, root):
-        """Connector names available to the account, or None if they cannot be read."""
-        raise NotImplementedError
+        """Connector names available to the account, or None if they cannot be read
+        (also the default, for an adapter without connectors)."""
+        return None
 
     def list_plugins(self, path):
         """[{"id", "enabled", "scope"}] for the project at `path`, or None on failure."""
@@ -83,8 +83,19 @@ class Adapter(object):
         return {}
 
     def connectors_off(self, state, path):
-        """Connector names switched off for `path` according to `state`."""
+        """Connector names switched off for `path` according to `state`; None when
+        this adapter can't control connectors there (the core then leaves this
+        adapter's connectors out of the row and shows uncontrolled_hint())."""
         return []
+
+    def connectors_mixed(self, state, path):
+        """Connector names that are off for `path` because another folder sharing
+        the tool's project switched them off; shown as mixed, never as drift."""
+        return []
+
+    def uncontrolled_hint(self):
+        """Why connectors_off returned None, for the page and scan."""
+        return ""
 
     def account_info(self):
         """{"name", "id8", "orgs": [{"id8", "current", "plugins"}], "descriptions"}."""

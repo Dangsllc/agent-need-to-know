@@ -20,6 +20,7 @@ scripts/ntk_pkg/
   adapters/
     base.py          Adapter interface (documented)
     claude_code.py   the only module that runs `claude` or touches Claude's files
+    antigravity.py   the only module that runs `agy` or touches ~/.gemini (Antigravity)
 scripts/console.html           the page (single file, no network resources)
 scripts/check_leaks.py         pre-publish check, also run in CI
 ```
@@ -35,7 +36,10 @@ Defined in `adapters/base.py`. The registry in `adapters/__init__.py` holds ever
 - calls about one id (`is_self`, `is_global`, `set_global`, `installable`, `missing_hint`, `describe`) go to that id's owner;
 - `plan` and `apply` split each row by owner, so an adapter only sees and changes its own items;
 - `account_wide` and `list_plugins` are joined across adapters;
-- `load_state`, `connectors_off`, `read_project`, `list_available`, `account_info`, `stale_entries` and `discover_capabilities` still come from the first adapter only, until a second adapter defines its own state (P1).
+- `load_state` returns a `FleetState` (the first adapter's state, carrying the others'); `connectors_off`, `connectors_mixed` and `stale_entries` route each part to its adapter; `list_available` and `discover_capabilities` are joined, each adapter keeping its own ids;
+- `read_project` (the SessionStart hook, file-only) and `account_info` come from the first adapter; the hook checks only that adapter's ids.
+
+An adapter whose `connectors_off` returns None for a folder (it has nowhere to write) adds a note to the row (`tool_notes`) instead of drift. `connectors_mixed` names connectors forced off by another folder sharing the tool's project; they are shown as `mixed`, never as drift. Cached lists record the adapters that produced them.
 
 Profiles enforce a `<tool>:...` id only when an available adapter owns it (`model.resolve(..., managed=)`); otherwise it stays in `foreign`, shown but not enforced. Each plugin and connector in a row carries `tool`, and `scan()` returns `tools`: each adapter's declaration.
 
@@ -58,7 +62,14 @@ Declarations (class attributes): `kinds` (`plugin`, `mcp`, `skill`, `instruction
 
 A row (see `engine.evaluate`) holds desired and actual state per plugin and connector; an act is `{"kind", "item", "old", "new", "cmd"}`.
 
-## Adding Codex CLI, Gemini CLI or another tool
+## The Antigravity adapter
+
+- Ids: `antigravity:mcp:<internal name>` (a plugin's server is `<plugin>_<server>`, the name Antigravity's permission rules use) and `antigravity:plugin:<name>`.
+- MCP servers are switched off per folder with deny rules `mcp(<name>/*)` in every Antigravity project (`~/.gemini/config/projects/<id>.json`) that lists the folder. Only `permissionGrants.permissionGrants.deny` is written. `data_dir/antigravity-owned.json` records the rules ntk added per project and folder, so ntk removes only its own, and a deny from any folder of a shared project wins. It is not in history: undo re-applies.
+- User-level plugins are global (`agy plugin enable|disable`). Workspace plugins (`.agents/plugins/`) are not handled yet.
+- Only server names are read from `mcp_config.json` files; their values (tokens) are never kept. `NTK_GEMINI_HOME` overrides `~/.gemini`.
+
+## Adding Codex CLI or another tool
 
 1. Create `adapters/<tool>.py` with a subclass of `Adapter`. Set `name` to the id prefix (`codex`, `gemini`) so it owns ids such as `codex:mcp:github`.
 2. Implement reading (`list_*`, `read_project`) from that tool's CLI or config files, and `plan`/`apply` to make its settings match the resolved allow list. Back up any file you edit and log through `config.log_change`.

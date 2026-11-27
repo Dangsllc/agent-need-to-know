@@ -4,7 +4,7 @@ import json
 import os
 import sys
 
-from . import history, model
+from . import adapters, history, model
 from .config import config_path, load_config
 from .engine import (L, account_wide_decide, set_account_wide_policy, undo_change, apply_all, check_path, do_apply, do_attach, do_inline, profile_default,
                      profile_delete, profile_edit, profile_new, render_table, scan, snapshot)
@@ -217,8 +217,13 @@ def _run(ap, args, cfg):
                 print("global: %s %s" % (g["id"], msg))
         for n in st.get("notes", []):
             print("note: " + n)
-        for k in st["stale"]:
-            print("stale %s entry (folder gone): %s" % (L("state_file"), k))
+        prim = adapters.primary().name
+        for tool, entries in (st.get("stale_by") or {prim: st["stale"]}).items():
+            for k in entries:
+                if tool == prim:
+                    print("stale %s entry (folder gone): %s" % (L("state_file"), k))
+                else:
+                    print("stale entry (folder gone): %s" % k)
         return 0
     if args.cmd == "apply":
         if args.all:

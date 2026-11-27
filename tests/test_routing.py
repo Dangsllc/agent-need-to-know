@@ -53,6 +53,104 @@ class FakeAdapter(Adapter):
         return 0
 
 
+class ConnFake(FakeAdapter):
+    """A fake that also owns connectors: off per folder from its state; a folder
+    missing from the state is one the tool can't control."""
+    def __init__(self, *a, **k):
+        FakeAdapter.__init__(self, *a, **k)
+        self.off, self.mixed = {}, {}
+
+    def list_available(self, root):
+        return ["fake:mcp:a", "fake:mcp:b"]
+
+    def load_state(self):
+        return {"off": dict(self.off)}
+
+    def connectors_off(self, state, path):
+        return state["off"].get(path)
+
+    def connectors_mixed(self, state, path):
+        return self.mixed.get(path, [])
+
+    def uncontrolled_hint(self):
+        return "Fake CLI: no project for this folder"
+
+    def stale_entries(self, state, root):
+        return ["fake-stale"]
+
+
+class FleetConnectors(Env):
+    def setUp(self):
+        super().setUp()
+        self.fake = ConnFake()
+        adapters._ADAPTERS.append(self.fake)
+        prof = dict(PROFILES, profiles=dict(PROFILES["profiles"],
+                                            py={"plugins": ["a@x"], "connectors": ["fake:mcp:a"]}))
+        jdump(prof, os.path.join(self.data, "profiles.json"))
+        self.app = os.path.join(self.root, "app")
+        self.lists[self.app] = [{"id": "a@x", "enabled": True, "scope": "local"},
+                                {"id": "b@x", "enabled": True, "scope": "local"}]
+
+    def tearDown(self):
+        adapters._ADAPTERS.remove(self.fake)
+        super().tearDown()
+
+    def row(self):
+        st = engine.scan(engine.load_config(), fresh=True)
+        return st, next(r for r in st["projects"] if r["path"] == "app")
+
+    def test_state_is_routed_and_joined(self):
+        st = adapters.get().load_state()
+        self.assertIsInstance(st, dict)          # the primary state, as before
+        self.assertIn("fake", st.others)
+        self.assertIn("fake:mcp:a", adapters.get().list_available(self.root))
+        self.assertIn("Docs", adapters.get().list_available(self.root))
+        self.assertIn("fake-stale", adapters.get().stale_entries(st, self.root))
+
+    def test_drift_and_apply_for_second_tool(self):
+        self.fake.off = {self.app: []}           # controllable, everything on
+        st, r = self.row()
+        conns = {c["name"]: c for c in r["connectors"]}
+        self.assertEqual(conns["fake:mcp:a"]["tool"], "fake")
+        self.assertFalse(conns["fake:mcp:a"]["desired_off"])   # granted by py
+        self.assertTrue(conns["fake:mcp:b"]["desired_off"])    # implicit deny
+        self.assertIn("connector fake:mcp:b is on, profiles want it off", r["drift"])
+        self.assertIn("fake-stale", st["stale"])
+        self.assertEqual(st["stale_by"].get("fake"), ["fake-stale"])
+
+    def test_uncontrolled_folder_is_a_note_not_drift(self):
+        self.fake.off = {}                       # no project for app
+        st, r = self.row()
+        self.assertFalse(any(c["name"].startswith("fake:") for c in r["connectors"]))
+        self.assertIn("Fake CLI: no project for this folder", r["tool_notes"])
+        self.assertFalse(any("fake:" in d for d in r["drift"]))
+
+    def test_mixed_is_not_drift(self):
+        self.fake.off = {self.app: ["fake:mcp:a", "fake:mcp:b"]}
+        self.fake.mixed = {self.app: ["fake:mcp:a"]}   # another folder in the project denies it
+        st, r = self.row()
+        conns = {c["name"]: c for c in r["connectors"]}
+        self.assertTrue(conns["fake:mcp:a"]["mixed"])
+        self.assertFalse(any("fake:mcp:a" in d for d in r["drift"]))
+
+    def test_hook_ignores_other_tools(self):
+        self.fake.off = {self.app: []}
+        engine.scan(engine.load_config(), fresh=True)  # fills the connector cache
+        out = self.check(self.app)
+        # Claude's Gmail and Stripe are not granted (2); fake:mcp:b would make it 3
+        self.assertIn("2 connector(s) to turn off", out)
+
+    def test_cache_is_stale_when_tools_change(self):
+        cfg = engine.load_config()
+        self.fake.off = {self.app: []}
+        engine.scan(cfg)
+        c = engine.load_cache(cfg)
+        self.assertEqual(c["projects"][self.app]["tools"], ["claude", "fake"])
+        self.assertEqual(c["connectors"]["tools"], ["claude", "fake"])
+        self.fake.avail = False
+        self.assertFalse(engine._same_tools(c["projects"][self.app], adapters.tool_key()))
+
+
 class Routing(Env):
     def setUp(self):
         super().setUp()
